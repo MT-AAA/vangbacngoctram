@@ -35,7 +35,7 @@ export function LoginForm({
     setLoading(true);
     try {
       if (isSignup) {
-        const { error } = await supabase.auth.signUp({
+        const { data, error } = await supabase.auth.signUp({
           email,
           password,
           options: {
@@ -49,16 +49,27 @@ export function LoginForm({
           toast.error("Đăng ký thất bại", { description: error.message });
           return;
         }
-        toast.success("Tạo tài khoản thành công, đang đăng nhập...");
-      } else {
-        const { error } = await supabase.auth.signInWithPassword({
-          email,
-          password,
-        });
-        if (error) {
-          toast.error("Đăng nhập thất bại", { description: error.message });
+        if (data.session) {
+          toast.success("Tạo tài khoản thành công, đang đăng nhập...");
+          router.push(next ?? "/dashboard");
+          router.refresh();
           return;
         }
+        toast.success("Tạo tài khoản thành công", {
+          description:
+            "Vui lòng kiểm tra email để xác nhận tài khoản, sau đó đăng nhập bằng mật khẩu vừa tạo.",
+        });
+        setMode("signin");
+        setPassword("");
+        return;
+      }
+      const { error } = await supabase.auth.signInWithPassword({
+        email,
+        password,
+      });
+      if (error) {
+        toast.error("Đăng nhập thất bại", { description: error.message });
+        return;
       }
       router.push(next ?? "/dashboard");
       router.refresh();
