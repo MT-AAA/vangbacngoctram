@@ -170,6 +170,10 @@ export type DashboardSummary = {
     quantity: number;
     weight_kg: number;
   }>;
+  inventoryAlerts: {
+    missingCost: number;
+    lowStock: number;
+  };
   customerPurchases: DashboardCustomerPurchaseSummary;
 };
 
@@ -271,9 +275,9 @@ export async function loadDashboard(period: PeriodKey): Promise<DashboardSummary
     supabase
       .from("inventory_items")
       .select(
-        "quantity_on_hand, weight, category:product_categories(name, code)"
+        "current_quantity, current_weight, quantity_on_hand, weight, purchase_cost_amount, is_tax_cost_source, category:product_categories(name, code)"
       )
-      .eq("status", "in_stock"),
+      .not("status", "in", "(archived,sold)"),
     loadDashboardCustomerPurchases(supabase, {
       from: fromISO,
       to: toISOEnd,
@@ -385,18 +389,32 @@ export async function loadDashboard(period: PeriodKey): Promise<DashboardSummary
     };
   });
 
-  // Inventory snapshot (group by category)
+  // Inventory snapshot (group by category) — uses Phase 2G `current_*`
+  // columns when present, falling back to legacy `quantity_on_hand` / `weight`
+  // for rows that haven't been migrated yet. Also derives the alert counters
+  // for the dashboard tile.
   type InvAgg = { qty: number; weight: number; unit: string };
   const invMap = new Map<string, InvAgg>();
+  let missingCostAlert = 0;
+  let lowStockAlert = 0;
   for (const it of inventory ?? []) {
     const c = Array.isArray(it.category) ? it.category[0] : it.category;
     const name = c?.name ?? "Khác";
     const unit = c?.code === "BAC" ? "lượng" : "chỉ";
     const existing = invMap.get(name) ?? { qty: 0, weight: 0, unit };
-    existing.qty += Number(it.quantity_on_hand ?? 0);
-    existing.weight += Number(it.weight ?? 0);
+    const qty = Number(it.current_quantity ?? it.quantity_on_hand ?? 0);
+    const weight = Number(it.current_weight ?? it.weight ?? 0);
+    existing.qty += qty;
+    existing.weight += weight;
     existing.unit = unit;
     invMap.set(name, existing);
+
+    if (it.is_tax_cost_source && it.purchase_cost_amount === null) {
+      missingCostAlert += 1;
+    }
+    if (qty < 1) {
+      lowStockAlert += 1;
+    }
   }
   const inventorySnapshot = order
     .filter((n) => invMap.has(n))
@@ -445,6 +463,10 @@ export async function loadDashboard(period: PeriodKey): Promise<DashboardSummary
       error_rows: i.error_rows ?? 0,
     })),
     inventorySnapshot,
+    inventoryAlerts: {
+      missingCost: missingCostAlert,
+      lowStock: lowStockAlert,
+    },
     customerPurchases,
   };
 }

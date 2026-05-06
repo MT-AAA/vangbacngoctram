@@ -8,7 +8,7 @@
     "start": "next start",
     "lint": "next lint",
     "typecheck": "tsc --noEmit",
-    "test": "node --import tsx --test src/lib/excel/__tests__/parse.test.ts src/lib/issues/__tests__/queries.test.ts src/lib/customer-purchases/__tests__/schema.test.ts src/lib/tax/__tests__/average-cost.test.ts src/lib/__tests__/utils.test.ts src/lib/reports/__tests__/csv.test.ts src/lib/reports/__tests__/range.test.ts src/lib/reports/__tests__/weight.test.ts src/lib/reports/__tests__/sales-by-time.test.ts"
+    "test": "node --import tsx --test src/lib/excel/__tests__/parse.test.ts src/lib/issues/__tests__/queries.test.ts src/lib/customer-purchases/__tests__/schema.test.ts src/lib/tax/__tests__/average-cost.test.ts src/lib/__tests__/utils.test.ts src/lib/reports/__tests__/csv.test.ts src/lib/reports/__tests__/range.test.ts src/lib/reports/__tests__/weight.test.ts src/lib/reports/__tests__/sales-by-time.test.ts src/lib/inventory/__tests__/sku.test.ts src/lib/inventory/__tests__/link.test.ts"
   },
   "dependencies": {
     "@hookform/resolvers": "^5.2.2",
