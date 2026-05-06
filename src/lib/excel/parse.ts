@@ -52,6 +52,11 @@ const ALIASES: Array<[keyof ParsedRow, string[]]> = [
       "ma",
       "mã hóa đơn",
       "ma hoa don",
+      "số hđ",
+      "so hd",
+      "số hd",
+      "hđ",
+      "hd",
     ],
   ],
   [
@@ -110,6 +115,20 @@ function normalizeHeader(s: string): string {
   return s.toString().trim().toLowerCase().replace(/\s+/g, " ");
 }
 
+/**
+ * Coerce an Excel cell value to a number, preserving JS-number decimals.
+ *
+ * SheetJS yields numeric cells as JS `number`, so we must NOT stringify them
+ * before parsing — `parseVietnameseNumber("1.5")` would strip the `.` (treating
+ * it as a thousand separator) and return `15`. Strings still go through the
+ * Vietnamese-aware parser to handle `"6.500.000"`, `"1,5"`, etc.
+ */
+function toNumber(value: unknown): number | null {
+  if (value === null || value === undefined || value === "") return null;
+  if (typeof value === "number") return Number.isFinite(value) ? value : null;
+  return parseVietnameseNumber(String(value));
+}
+
 function excelDateToISO(value: unknown): string | null {
   if (value === null || value === undefined || value === "") return null;
   if (value instanceof Date) {
@@ -156,8 +175,13 @@ export async function parseSalesExcel(buffer: ArrayBuffer): Promise<ParseResult>
     return { rows: [], unrecognized_columns: [], recognized_columns: {}, total_rows: 0 };
   }
   const sheet = wb.Sheets[firstSheet];
+  // Use raw:true so SheetJS yields numeric cells as JS numbers (e.g. 1.5),
+  // not formatted strings ("1.5") that would then be parsed by
+  // `parseVietnameseNumber` and lose the decimal point. Dates are handled
+  // separately by `excelDateToISO`, which accepts both Date objects (when
+  // `cellDates: true` is set on `XLSX.read`) and Excel serial numbers.
   const json = XLSX.utils.sheet_to_json<Record<string, unknown>>(sheet, {
-    raw: false,
+    raw: true,
     defval: null,
     blankrows: false,
   });
@@ -208,19 +232,19 @@ export async function parseSalesExcel(buffer: ArrayBuffer): Promise<ParseResult>
           row.product_name_raw = String(v).trim();
           break;
         case "quantity":
-          row.quantity = parseVietnameseNumber(String(v));
+          row.quantity = toNumber(v);
           break;
         case "weight":
-          row.weight = parseVietnameseNumber(String(v));
+          row.weight = toNumber(v);
           break;
         case "unit_price":
-          row.unit_price = parseVietnameseNumber(String(v));
+          row.unit_price = toNumber(v);
           break;
         case "total_amount":
-          row.total_amount = parseVietnameseNumber(String(v));
+          row.total_amount = toNumber(v);
           break;
         case "purchase_cost_amount":
-          row.purchase_cost_amount = parseVietnameseNumber(String(v));
+          row.purchase_cost_amount = toNumber(v);
           break;
         case "customer_name":
           row.customer_name = String(v).trim() || null;
