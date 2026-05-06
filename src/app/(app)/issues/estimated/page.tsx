@@ -51,9 +51,10 @@ export default async function EstimatedIssuesPage({
           Đang tính theo ước tính
         </h1>
         <p className="text-sm text-muted-foreground">
-          Các dòng có giá vốn được tính theo trung bình kho. Khi mở chức năng
-          tồn kho, bạn có thể thay bằng giá vốn thực để báo cáo thuế chính xác
-          hơn.
+          Các dòng có giá vốn được tính theo giá mua bình quân từ giao dịch
+          mua từ khách trong cùng kỳ và cùng nhóm sản phẩm. Khi có giá vốn
+          thực (nhập tay hoặc theo kho), bạn có thể thay thế để báo cáo thuế
+          chính xác hơn.
         </p>
       </div>
 
@@ -73,8 +74,9 @@ export default async function EstimatedIssuesPage({
               {total.toLocaleString("vi-VN")} dòng dùng giá vốn ước tính
             </CardTitle>
             <CardDescription>
-              Hiện chỉ xem được — chức năng thay giá vốn theo kho sẽ mở khi có
-              module tồn kho.
+              Báo cáo thuế GTGT trực tiếp sẽ phân biệt rõ phần đã có giá vốn
+              thực và phần đang ước tính. Để thay bằng giá vốn thực, hãy nhập
+              tay tại trang <strong>Thiếu giá vốn</strong>.
             </CardDescription>
           </CardHeader>
           <CardContent>

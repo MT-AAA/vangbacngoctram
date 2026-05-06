@@ -41,6 +41,27 @@ export default async function DashboardPage({
         <PeriodFilter active={periodKey} rangeLabel={data.range.label} />
       </div>
 
+      {totals.estimatedCount > 0 && (
+        <div className="rounded-xl border border-amber-300/60 bg-amber-50 px-4 py-3 text-sm text-amber-900 flex flex-wrap items-center justify-between gap-2">
+          <div className="flex items-center gap-2">
+            <Sparkles className="h-4 w-4 text-amber-700" />
+            <div>
+              <div className="font-medium">Dữ liệu đang tính theo ước tính</div>
+              <div className="text-xs text-amber-900/70">
+                Có {formatNumber(totals.estimatedCount, 0)} dòng bán đang dùng
+                giá vốn bình quân (chưa có giá vốn thực).
+              </div>
+            </div>
+          </div>
+          <Link
+            href="/issues/estimated"
+            className="text-xs font-medium text-amber-900 underline-offset-4 hover:underline inline-flex items-center gap-1"
+          >
+            Xem danh sách <ArrowRight className="h-3 w-3" />
+          </Link>
+        </div>
+      )}
+
       {/* KPI strip */}
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-5">
         <KpiCard
