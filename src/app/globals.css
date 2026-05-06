@@ -180,3 +180,35 @@
     border-radius: 9999px;
   }
 }
+
+/* Print stylesheet for /reports/* */
+@media print {
+  @page {
+    size: A4;
+    margin: 12mm;
+  }
+  html,
+  body {
+    background: white !important;
+    color: black !important;
+  }
+  /* Hide the global app shell (sidebar, topbar) and any non-report widgets */
+  aside,
+  header[role="banner"],
+  .app-shell-sidebar,
+  .app-shell-topbar,
+  .report-screen-only {
+    display: none !important;
+  }
+  .report-print-only {
+    display: block !important;
+  }
+  .report-shell .card,
+  .report-shell table {
+    box-shadow: none !important;
+    border-color: #444 !important;
+  }
+  .report-shell {
+    color: black !important;
+  }
+}
