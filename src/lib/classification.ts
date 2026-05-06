@@ -1,8 +1,19 @@
 /**
  * Keyword-based product classification.
  *
- * Rules are loaded from the `classification_rules` table per store.
- * Lower `priority` values are matched first.
+ * Rules are loaded from the `classification_rules` table per store. Lower
+ * `priority` values are matched first.
+ *
+ * Matching is whole-word (regex with `\b` boundaries) on the lowercased,
+ * whitespace-collapsed product name. We do NOT fall back to a diacritic-
+ * stripped form, because that turns short ambiguous keywords like "tây"
+ * (west) into matches against unrelated Vietnamese words like "tay" (hand) —
+ * e.g. "Lắc tay" should remain unclassified, but a stripped match would
+ * incorrectly tag it as Vàng tây.
+ *
+ * Stripped-form keywords are explicitly seeded in `seed_store_defaults`
+ * (e.g. both `"vàng tây"` and `"vang tay"`), so users typing without
+ * diacritics still match.
  */
 
 export type ClassificationRule = {
@@ -20,21 +31,21 @@ export type ClassificationResult = {
 };
 
 function normalize(s: string): string {
-  // Lower-case, collapse whitespace, strip Vietnamese diacritics where helpful
-  // (we keep originals too, so two passes ensure both "vàng tây" and "vang tay" match)
-  return s
-    .toLowerCase()
-    .normalize("NFC")
-    .replace(/\s+/g, " ")
-    .trim();
+  return s.toLowerCase().normalize("NFC").replace(/\s+/g, " ").trim();
 }
 
-function stripDiacritics(s: string): string {
-  return s
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .replace(/đ/g, "d")
-    .replace(/Đ/g, "D");
+/**
+ * Build a regex that matches `keyword` as a whole-word, case-insensitively.
+ * "Whole word" here means: the character before the keyword (if any) is not
+ * `[a-z0-9]`, and the character after (if any) is not `[a-z0-9]`.
+ *
+ * Vietnamese diacritic vowels (e.g. `ầ`, `ư`) are NOT in `[a-z0-9]`, so a
+ * pure `\b` would fire incorrectly between a Latin letter and a diacritic
+ * vowel. We therefore use explicit lookaround on `[a-z0-9]`.
+ */
+function wholeWordRegex(keyword: string): RegExp {
+  const escaped = keyword.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  return new RegExp(`(?:^|[^a-z0-9])${escaped}(?=[^a-z0-9]|$)`, "i");
 }
 
 export function classifyProduct(
@@ -45,7 +56,6 @@ export function classifyProduct(
     return { category_id: null, matched_keyword: null, source: "unknown" };
   }
   const normalized = normalize(productName);
-  const stripped = stripDiacritics(normalized);
 
   // Sort by priority asc, then keyword length desc so longer keywords beat shorter ones at same priority
   const sorted = [...rules]
@@ -57,12 +67,8 @@ export function classifyProduct(
 
   for (const rule of sorted) {
     const k = normalize(rule.keyword);
-    const kStripped = stripDiacritics(k);
-    if (
-      normalized.includes(k) ||
-      stripped.includes(k) ||
-      stripped.includes(kStripped)
-    ) {
+    if (!k) continue;
+    if (wholeWordRegex(k).test(normalized)) {
       return {
         category_id: rule.category_id,
         matched_keyword: rule.keyword,

@@ -6,7 +6,9 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint"
+    "lint": "next lint",
+    "typecheck": "tsc --noEmit",
+    "test": "node --import tsx --test src/lib/excel/__tests__/parse.test.ts"
   },
   "dependencies": {
     "@hookform/resolvers": "^5.2.2",

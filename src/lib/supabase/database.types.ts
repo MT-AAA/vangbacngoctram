@@ -218,11 +218,16 @@ export type Database = {
           id: string
           inserted_rows: number
           notes: string | null
+          period_end: string | null
+          period_start: string | null
           processed_at: string | null
           status: Database["public"]["Enums"]["import_status"]
           storage_path: string | null
           store_id: string
+          total_amount: number
           total_rows: number
+          transaction_line_count: number
+          unique_invoice_count: number
           updated_rows: number
           uploaded_by: string | null
         }
@@ -234,11 +239,16 @@ export type Database = {
           id?: string
           inserted_rows?: number
           notes?: string | null
+          period_end?: string | null
+          period_start?: string | null
           processed_at?: string | null
           status?: Database["public"]["Enums"]["import_status"]
           storage_path?: string | null
           store_id: string
+          total_amount?: number
           total_rows?: number
+          transaction_line_count?: number
+          unique_invoice_count?: number
           updated_rows?: number
           uploaded_by?: string | null
         }
@@ -250,11 +260,16 @@ export type Database = {
           id?: string
           inserted_rows?: number
           notes?: string | null
+          period_end?: string | null
+          period_start?: string | null
           processed_at?: string | null
           status?: Database["public"]["Enums"]["import_status"]
           storage_path?: string | null
           store_id?: string
+          total_amount?: number
           total_rows?: number
+          transaction_line_count?: number
+          unique_invoice_count?: number
           updated_rows?: number
           uploaded_by?: string | null
         }
@@ -454,14 +469,26 @@ export type Database = {
           classification_source: string | null
           created_at: string
           created_by: string | null
+          currency: string | null
+          currency_rate: number | null
+          customer_address: string | null
           customer_name: string | null
           customer_phone: string | null
+          customer_tax_code: string | null
           id: string
           import_file_id: string | null
+          invoice_date: string | null
+          invoice_key: string | null
           invoice_no: string | null
+          invoice_series: string | null
+          invoice_status: string | null
+          invoice_template_code: string | null
           linked_inventory_item_id: string | null
           notes: string | null
+          payment_method: string | null
+          payment_status: string | null
           product_category_id: string | null
+          product_code: string | null
           product_name: string | null
           product_name_raw: string
           purchase_cost_amount: number | null
@@ -469,13 +496,20 @@ export type Database = {
           quantity: number
           raw_data: Json | null
           sale_date: string
+          sales_amount_before_tax: number | null
+          source_row_number: number | null
+          source_stt: number | null
           store_id: string
+          tax_authority_code: string | null
+          tax_authority_status: string | null
           tax_calculation_status: Database["public"]["Enums"]["tax_calc_status"]
           total_amount: number
           transaction_hash: string
+          unit: string | null
           unit_price: number
           updated_at: string
           value_added_amount: number | null
+          vat_output_amount_from_invoice: number | null
           weight: number | null
           weight_unit: string | null
         }
@@ -483,14 +517,26 @@ export type Database = {
           classification_source?: string | null
           created_at?: string
           created_by?: string | null
+          currency?: string | null
+          currency_rate?: number | null
+          customer_address?: string | null
           customer_name?: string | null
           customer_phone?: string | null
+          customer_tax_code?: string | null
           id?: string
           import_file_id?: string | null
+          invoice_date?: string | null
+          invoice_key?: string | null
           invoice_no?: string | null
+          invoice_series?: string | null
+          invoice_status?: string | null
+          invoice_template_code?: string | null
           linked_inventory_item_id?: string | null
           notes?: string | null
+          payment_method?: string | null
+          payment_status?: string | null
           product_category_id?: string | null
+          product_code?: string | null
           product_name?: string | null
           product_name_raw: string
           purchase_cost_amount?: number | null
@@ -498,13 +544,20 @@ export type Database = {
           quantity?: number
           raw_data?: Json | null
           sale_date: string
+          sales_amount_before_tax?: number | null
+          source_row_number?: number | null
+          source_stt?: number | null
           store_id: string
+          tax_authority_code?: string | null
+          tax_authority_status?: string | null
           tax_calculation_status?: Database["public"]["Enums"]["tax_calc_status"]
           total_amount?: number
           transaction_hash: string
+          unit?: string | null
           unit_price?: number
           updated_at?: string
           value_added_amount?: number | null
+          vat_output_amount_from_invoice?: number | null
           weight?: number | null
           weight_unit?: string | null
         }
@@ -512,14 +565,26 @@ export type Database = {
           classification_source?: string | null
           created_at?: string
           created_by?: string | null
+          currency?: string | null
+          currency_rate?: number | null
+          customer_address?: string | null
           customer_name?: string | null
           customer_phone?: string | null
+          customer_tax_code?: string | null
           id?: string
           import_file_id?: string | null
+          invoice_date?: string | null
+          invoice_key?: string | null
           invoice_no?: string | null
+          invoice_series?: string | null
+          invoice_status?: string | null
+          invoice_template_code?: string | null
           linked_inventory_item_id?: string | null
           notes?: string | null
+          payment_method?: string | null
+          payment_status?: string | null
           product_category_id?: string | null
+          product_code?: string | null
           product_name?: string | null
           product_name_raw?: string
           purchase_cost_amount?: number | null
@@ -527,13 +592,20 @@ export type Database = {
           quantity?: number
           raw_data?: Json | null
           sale_date?: string
+          sales_amount_before_tax?: number | null
+          source_row_number?: number | null
+          source_stt?: number | null
           store_id?: string
+          tax_authority_code?: string | null
+          tax_authority_status?: string | null
           tax_calculation_status?: Database["public"]["Enums"]["tax_calc_status"]
           total_amount?: number
           transaction_hash?: string
+          unit?: string | null
           unit_price?: number
           updated_at?: string
           value_added_amount?: number | null
+          vat_output_amount_from_invoice?: number | null
           weight?: number | null
           weight_unit?: string | null
         }

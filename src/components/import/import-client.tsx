@@ -9,15 +9,23 @@ import { FileSpreadsheet, Loader2, CheckCircle2, AlertCircle } from "lucide-reac
 import { formatVND, formatVNDate, formatNumber } from "@/lib/utils";
 
 type PreviewRow = {
-  row_number: number;
-  sale_date: string | null;
+  source_stt: number | null;
+  source_row_number: number;
+  invoice_series: string | null;
   invoice_no: string | null;
+  invoice_key: string;
+  transaction_hash: string;
+  sale_date: string | null;
+  invoice_date: string | null;
   product_name_raw: string;
+  unit: string | null;
   quantity: number | null;
-  weight: number | null;
   unit_price: number | null;
   total_amount: number | null;
-  purchase_cost_amount: number | null;
+  vat_output_amount_from_invoice: number | null;
+  payment_status: string | null;
+  invoice_status: string | null;
+  tax_authority_status: string | null;
   errors: string[];
   classified_category_name?: string | null;
   matched_keyword?: string | null;
@@ -25,9 +33,17 @@ type PreviewRow = {
 
 type PreviewResp = {
   rows: PreviewRow[];
-  unrecognized_columns: string[];
-  recognized_columns: Record<string, string>;
   total_rows: number;
+  data_row_count: number;
+  header_row_number: number | null;
+  recognized_columns: string[];
+  unrecognized_columns: string[];
+  total_amount: number;
+  period_start: string | null;
+  period_end: string | null;
+  unique_invoice_count: number;
+  transaction_hash_count: number;
+  errors: string[];
 };
 
 type CommitResp = {
@@ -36,6 +52,11 @@ type CommitResp = {
   updated: number;
   errors: number;
   import_file_id: string;
+  transaction_line_count: number;
+  unique_invoice_count: number;
+  total_amount: number;
+  period_start: string | null;
+  period_end: string | null;
 };
 
 export function ImportClient() {
@@ -61,7 +82,9 @@ export function ImportClient() {
       }
       const data = (await res.json()) as PreviewResp;
       setPreview(data);
-      toast.success(`Đã đọc ${data.total_rows} dòng`);
+      toast.success(
+        `Đã đọc ${data.data_row_count} dòng (${data.unique_invoice_count} hóa đơn)`
+      );
     } finally {
       setIsPreviewing(false);
     }
@@ -84,7 +107,6 @@ export function ImportClient() {
       });
       setFile(null);
       setPreview(null);
-      // Reload the page (history list will refresh)
       if (typeof window !== "undefined") {
         window.location.reload();
       }
@@ -135,13 +157,35 @@ export function ImportClient() {
 
       {preview && (
         <div className="space-y-3">
-          <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-            <SummaryStat label="Tổng dòng" value={formatNumber(preview.total_rows, 0)} />
+          <div className="grid grid-cols-2 gap-2 sm:grid-cols-4 lg:grid-cols-6">
             <SummaryStat
-              label="Hợp lệ"
-              value={formatNumber(goodRows.length, 0)}
+              label="Dòng hợp lệ"
+              value={formatNumber(preview.data_row_count, 0)}
               tone="success"
             />
+            <SummaryStat
+              label="Hóa đơn duy nhất"
+              value={formatNumber(preview.unique_invoice_count, 0)}
+            />
+            <SummaryStat
+              label="Hash giao dịch"
+              value={formatNumber(preview.transaction_hash_count, 0)}
+            />
+            <SummaryStat
+              label="Tổng doanh thu"
+              value={formatVND(preview.total_amount)}
+            />
+            <SummaryStat
+              label="Từ ngày"
+              value={formatVNDate(preview.period_start)}
+            />
+            <SummaryStat
+              label="Đến ngày"
+              value={formatVNDate(preview.period_end)}
+            />
+          </div>
+
+          <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
             <SummaryStat
               label="Có lỗi"
               value={formatNumber(errorRows.length, 0)}
@@ -150,6 +194,14 @@ export function ImportClient() {
             <SummaryStat
               label="Cột không nhận dạng"
               value={formatNumber(preview.unrecognized_columns.length, 0)}
+            />
+            <SummaryStat
+              label="Dòng tiêu đề"
+              value={
+                preview.header_row_number === null
+                  ? "—"
+                  : `R${preview.header_row_number}`
+              }
             />
           </div>
 
@@ -166,15 +218,15 @@ export function ImportClient() {
             <table className="w-full text-sm">
               <thead className="bg-muted sticky top-0">
                 <tr>
-                  <th className="px-2 py-2 text-left">#</th>
+                  <th className="px-2 py-2 text-left">STT</th>
                   <th className="px-2 py-2 text-left">Ngày</th>
-                  <th className="px-2 py-2 text-left">Hóa đơn</th>
-                  <th className="px-2 py-2 text-left">Sản phẩm</th>
+                  <th className="px-2 py-2 text-left">Ký hiệu</th>
+                  <th className="px-2 py-2 text-left">Số HĐ</th>
+                  <th className="px-2 py-2 text-left">Tên hàng hóa</th>
+                  <th className="px-2 py-2 text-left">ĐVT</th>
                   <th className="px-2 py-2 text-right">SL</th>
-                  <th className="px-2 py-2 text-right">Trọng lượng</th>
                   <th className="px-2 py-2 text-right">Đơn giá</th>
-                  <th className="px-2 py-2 text-right">Thành tiền</th>
-                  <th className="px-2 py-2 text-right">Giá vốn</th>
+                  <th className="px-2 py-2 text-right">Tổng cộng</th>
                   <th className="px-2 py-2 text-left">Phân loại</th>
                   <th className="px-2 py-2 text-left">Lỗi</th>
                 </tr>
@@ -182,7 +234,7 @@ export function ImportClient() {
               <tbody>
                 {preview.rows.slice(0, 200).map((r) => (
                   <tr
-                    key={r.row_number}
+                    key={r.transaction_hash}
                     className={
                       r.errors.length > 0
                         ? "bg-destructive/5"
@@ -190,27 +242,27 @@ export function ImportClient() {
                     }
                   >
                     <td className="px-2 py-1.5 text-muted-foreground">
-                      {r.row_number}
+                      {r.source_stt ?? "—"}
                     </td>
                     <td className="px-2 py-1.5">{formatVNDate(r.sale_date)}</td>
+                    <td className="px-2 py-1.5 text-xs text-muted-foreground">
+                      {r.invoice_series ?? "—"}
+                    </td>
                     <td className="px-2 py-1.5">{r.invoice_no ?? "—"}</td>
                     <td className="px-2 py-1.5 max-w-[280px] truncate">
                       {r.product_name_raw}
                     </td>
-                    <td className="px-2 py-1.5 text-right">
-                      {formatNumber(r.quantity, 2)}
+                    <td className="px-2 py-1.5 text-xs text-muted-foreground">
+                      {r.unit ?? "—"}
                     </td>
                     <td className="px-2 py-1.5 text-right">
-                      {formatNumber(r.weight, 4)}
+                      {formatNumber(r.quantity, 2)}
                     </td>
                     <td className="px-2 py-1.5 text-right">
                       {formatVND(r.unit_price ?? null)}
                     </td>
                     <td className="px-2 py-1.5 text-right font-medium">
                       {formatVND(r.total_amount ?? null)}
-                    </td>
-                    <td className="px-2 py-1.5 text-right">
-                      {formatVND(r.purchase_cost_amount ?? null)}
                     </td>
                     <td className="px-2 py-1.5 text-xs">
                       {r.classified_category_name ? (
@@ -219,7 +271,7 @@ export function ImportClient() {
                           {r.classified_category_name}
                         </span>
                       ) : (
-                        <span className="text-muted-foreground">—</span>
+                        <span className="text-muted-foreground">Cần xử lý</span>
                       )}
                     </td>
                     <td className="px-2 py-1.5">

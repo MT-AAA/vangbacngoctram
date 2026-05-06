@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { parseSalesExcel } from "@/lib/excel/parse";
+import { rowIdentifiers } from "@/lib/excel/hash";
 import { classifyProduct, type ClassificationRule } from "@/lib/classification";
 
 export const runtime = "nodejs";
@@ -29,7 +30,6 @@ export async function POST(request: Request) {
   const arrayBuffer = await file.arrayBuffer();
   const parsed = await parseSalesExcel(arrayBuffer);
 
-  // Load classification rules for the user's store
   const { data: rules } = await supabase
     .from("classification_rules")
     .select("id, category_id, keyword, priority, is_active")
@@ -54,8 +54,10 @@ export async function POST(request: Request) {
 
   const previewRows = parsed.rows.map((r) => {
     const cls = classifyProduct(r.product_name_raw, classificationRules);
+    const ids = rowIdentifiers(profile.store_id!, r);
     return {
       ...r,
+      ...ids,
       classified_category_name: cls.category_id
         ? catNameById.get(cls.category_id) ?? null
         : null,
@@ -63,10 +65,23 @@ export async function POST(request: Request) {
     };
   });
 
+  // Reconciliation: counts of rows per identifier so multi-line invoices are
+  // visible in the preview.
+  const transactionHashes = new Set<string>();
+  for (const r of previewRows) transactionHashes.add(r.transaction_hash);
+
   return NextResponse.json({
     rows: previewRows,
-    unrecognized_columns: parsed.unrecognized_columns,
-    recognized_columns: parsed.recognized_columns,
     total_rows: parsed.total_rows,
+    data_row_count: parsed.data_row_count,
+    header_row_number: parsed.header_row_number,
+    recognized_columns: parsed.recognized_columns,
+    unrecognized_columns: parsed.unrecognized_columns,
+    total_amount: parsed.total_amount,
+    period_start: parsed.period_start,
+    period_end: parsed.period_end,
+    unique_invoice_count: parsed.unique_invoice_count,
+    transaction_hash_count: transactionHashes.size,
+    errors: parsed.errors,
   });
 }
