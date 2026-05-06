@@ -219,14 +219,14 @@ export default async function DashboardPage({
                 label="dòng bán thiếu giá mua vào"
                 count={totals.missingCount}
                 tone="destructive"
-                href="/sales?status=missing_purchase_cost"
+                href="/issues/missing-cost"
               />
               <ActionRow
                 icon={<Sparkles className="h-4 w-4 text-amber-700" />}
                 label="sản phẩm chưa phân loại"
-                count={0}
+                count={totals.unclassifiedCount}
                 tone="warning"
-                href="/sales"
+                href="/issues/unclassified"
               />
               <ActionRow
                 icon={<FileText className="h-4 w-4 text-emerald-800" />}
@@ -235,16 +235,24 @@ export default async function DashboardPage({
                   totals.negativeCarriedOut > 0 ? 1 : 0
                 }
                 tone="info"
-                href="/tax-reports"
+                href="/issues/negative-vat"
               />
               <ActionRow
                 icon={<Sparkles className="h-4 w-4 text-amber-700" />}
                 label="giao dịch đang tính theo ước tính"
                 count={totals.estimatedCount}
                 tone="warning"
-                href="/sales?status=estimated"
+                href="/issues/estimated"
               />
             </ul>
+            <div className="mt-3">
+              <a
+                href="/issues"
+                className="text-xs text-emerald-900/70 underline-offset-4 hover:underline"
+              >
+                Xem toàn bộ trang Cần xử lý →
+              </a>
+            </div>
           </div>
 
           <div className="card-cream rounded-2xl p-4 lg:p-5">

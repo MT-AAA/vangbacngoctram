@@ -12,6 +12,7 @@ import {
   Calculator,
   History,
   Settings,
+  AlertTriangle,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { Database } from "@/lib/supabase/database.types";
@@ -30,6 +31,7 @@ const NAV: NavItem[] = [
   { href: "/dashboard", label: "Tổng quan", icon: LayoutDashboard },
   { href: "/import", label: "Nhập Excel", icon: FileSpreadsheet },
   { href: "/sales", label: "Bán hàng", icon: Receipt },
+  { href: "/issues", label: "Cần xử lý", icon: AlertTriangle },
   { href: "/customer-purchases", label: "Mua từ khách", icon: ShoppingBag },
   { href: "/inventory", label: "Tồn kho", icon: Boxes },
   { href: "/tax-reports", label: "Báo cáo thuế", icon: Calculator },

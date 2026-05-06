@@ -476,6 +476,9 @@ export type Database = {
           customer_phone: string | null
           customer_tax_code: string | null
           id: string
+          ignored_at: string | null
+          ignored_by: string | null
+          ignored_reason: string | null
           import_file_id: string | null
           invoice_date: string | null
           invoice_key: string | null
@@ -483,6 +486,7 @@ export type Database = {
           invoice_series: string | null
           invoice_status: string | null
           invoice_template_code: string | null
+          is_intentionally_ignored: boolean
           linked_inventory_item_id: string | null
           notes: string | null
           payment_method: string | null
@@ -524,6 +528,9 @@ export type Database = {
           customer_phone?: string | null
           customer_tax_code?: string | null
           id?: string
+          ignored_at?: string | null
+          ignored_by?: string | null
+          ignored_reason?: string | null
           import_file_id?: string | null
           invoice_date?: string | null
           invoice_key?: string | null
@@ -531,6 +538,7 @@ export type Database = {
           invoice_series?: string | null
           invoice_status?: string | null
           invoice_template_code?: string | null
+          is_intentionally_ignored?: boolean
           linked_inventory_item_id?: string | null
           notes?: string | null
           payment_method?: string | null
@@ -572,6 +580,9 @@ export type Database = {
           customer_phone?: string | null
           customer_tax_code?: string | null
           id?: string
+          ignored_at?: string | null
+          ignored_by?: string | null
+          ignored_reason?: string | null
           import_file_id?: string | null
           invoice_date?: string | null
           invoice_key?: string | null
@@ -579,6 +590,7 @@ export type Database = {
           invoice_series?: string | null
           invoice_status?: string | null
           invoice_template_code?: string | null
+          is_intentionally_ignored?: boolean
           linked_inventory_item_id?: string | null
           notes?: string | null
           payment_method?: string | null
@@ -613,6 +625,13 @@ export type Database = {
           {
             foreignKeyName: "sales_transactions_created_by_fkey"
             columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "sales_transactions_ignored_by_fkey"
+            columns: ["ignored_by"]
             isOneToOne: false
             referencedRelation: "profiles"
             referencedColumns: ["id"]
@@ -868,7 +887,11 @@ export type Database = {
         | "inventory"
         | "average"
         | "unknown"
-      tax_calc_status: "complete" | "missing_purchase_cost" | "estimated"
+      tax_calc_status:
+        | "complete"
+        | "missing_purchase_cost"
+        | "estimated"
+        | "ignored"
       tax_period_type: "month" | "quarter" | "year" | "custom"
       user_role: "admin" | "staff" | "viewer"
     }
@@ -1007,7 +1030,7 @@ export const Constants = {
         "average",
         "unknown",
       ],
-      tax_calc_status: ["complete", "missing_purchase_cost", "estimated"],
+      tax_calc_status: ["complete", "missing_purchase_cost", "estimated", "ignored"],
       tax_period_type: ["month", "quarter", "year", "custom"],
       user_role: ["admin", "staff", "viewer"],
     },
