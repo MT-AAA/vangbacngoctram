@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { parseSalesExcel } from "@/lib/excel/parse";
-import { transactionHash } from "@/lib/excel/hash";
+import { rowIdentifiers } from "@/lib/excel/hash";
 import {
   classifyProduct,
   type ClassificationRule,
@@ -54,7 +54,6 @@ export async function POST(request: Request) {
       upsert: false,
     });
 
-  // Create import_files row
   const errorRows = parsed.rows.filter((r) => r.errors.length > 0);
   const goodRows = parsed.rows.filter((r) => r.errors.length === 0);
 
@@ -67,6 +66,11 @@ export async function POST(request: Request) {
       uploaded_by: profile.id,
       status: "processing",
       total_rows: parsed.total_rows,
+      transaction_line_count: parsed.data_row_count,
+      unique_invoice_count: parsed.unique_invoice_count,
+      total_amount: parsed.total_amount,
+      period_start: parsed.period_start,
+      period_end: parsed.period_end,
       error_rows: errorRows.length,
       error_log:
         errorRows.length > 0 ? toJson({ rows: errorRows.slice(0, 100) }) : null,
@@ -81,7 +85,6 @@ export async function POST(request: Request) {
     );
   }
 
-  // Classification rules
   const { data: rules } = await admin
     .from("classification_rules")
     .select("id, category_id, keyword, priority, is_active")
@@ -96,41 +99,72 @@ export async function POST(request: Request) {
     is_active: r.is_active,
   }));
 
-  // Build rows to upsert (goodRows have already been validated to have sale_date)
+  // Build rows to upsert. Imported rows always start with
+  // `tax_calculation_status = 'missing_purchase_cost'` because direct-method
+  // VAT requires the purchase cost, which is not in the sales report — the
+  // DB trigger `compute_sales_value_added` enforces this when
+  // `purchase_cost_amount` is null.
   const upsertRows = goodRows
     .filter((r): r is typeof r & { sale_date: string } => !!r.sale_date)
     .map((r) => {
-      const hash = transactionHash(r);
+      const ids = rowIdentifiers(profile.store_id!, r);
       const cls = classifyProduct(r.product_name_raw, classificationRules);
-      const purchaseSource: "excel" | "unknown" =
-        r.purchase_cost_amount !== null && r.purchase_cost_amount !== undefined
-          ? "excel"
-          : "unknown";
       return {
         store_id: profile.store_id!,
         import_file_id: importFile.id,
+
+        // Invoice identity
+        invoice_template_code: r.invoice_template_code,
+        invoice_series: r.invoice_series,
         invoice_no: r.invoice_no,
-        transaction_hash: hash,
+        invoice_key: ids.invoice_key,
+        transaction_hash: ids.transaction_hash,
+        invoice_date: r.invoice_date,
         sale_date: r.sale_date,
+
+        // Customer
         customer_name: r.customer_name,
-        customer_phone: r.customer_phone,
+        customer_tax_code: r.customer_tax_code,
+        customer_address: r.customer_address,
+
+        // Product
+        product_code: r.product_code,
         product_name_raw: r.product_name_raw,
         product_name: r.product_name_raw,
         product_category_id: cls.category_id,
         classification_source: cls.source,
+        unit: r.unit,
         quantity: r.quantity ?? 1,
-        weight: r.weight,
         unit_price: r.unit_price ?? 0,
+
+        // Amounts
+        currency: r.currency,
+        currency_rate: r.currency_rate,
+        sales_amount_before_tax: r.sales_amount_before_tax,
+        vat_output_amount_from_invoice: r.vat_output_amount_from_invoice,
         total_amount: r.total_amount ?? 0,
-        purchase_cost_amount: r.purchase_cost_amount,
-        purchase_cost_source: purchaseSource,
+
+        // VAT direct method — left null intentionally; tax engine fills these
+        // when purchase cost is provided. The trigger sets
+        // tax_calculation_status to 'missing_purchase_cost' automatically.
+        purchase_cost_amount: null,
+        purchase_cost_source: "unknown" as const,
+
+        // Payment + e-invoice status (raw flags from CQT)
+        payment_method: r.payment_method,
+        payment_status: r.payment_status,
+        invoice_status: r.invoice_status,
+        tax_authority_status: r.tax_authority_status,
+        tax_authority_code: r.tax_authority_code,
+
+        // Provenance
+        source_stt: r.source_stt,
+        source_row_number: r.source_row_number,
         raw_data: toJson(r.raw),
         created_by: profile.id,
       };
     });
 
-  // Determine which hashes already exist (so we can compute inserted vs updated counts).
-  // RLS allows current user to read their store's rows.
   const hashes = upsertRows.map((r) => r.transaction_hash);
   let existingCount = 0;
   if (hashes.length > 0) {
@@ -173,7 +207,6 @@ export async function POST(request: Request) {
     })
     .eq("id", importFile.id);
 
-  // Audit log
   await admin.from("audit_logs").insert({
     store_id: profile.store_id,
     user_id: profile.id,
@@ -183,6 +216,11 @@ export async function POST(request: Request) {
     metadata: {
       file_name: file.name,
       total_rows: parsed.total_rows,
+      transaction_line_count: parsed.data_row_count,
+      unique_invoice_count: parsed.unique_invoice_count,
+      total_amount: parsed.total_amount,
+      period_start: parsed.period_start,
+      period_end: parsed.period_end,
       inserted: upsertError ? 0 : insertedCount,
       updated: upsertError ? 0 : existingCount,
       errors: errorRows.length,
@@ -210,5 +248,10 @@ export async function POST(request: Request) {
     updated: existingCount,
     errors: errorRows.length,
     import_file_id: importFile.id,
+    transaction_line_count: parsed.data_row_count,
+    unique_invoice_count: parsed.unique_invoice_count,
+    total_amount: parsed.total_amount,
+    period_start: parsed.period_start,
+    period_end: parsed.period_end,
   });
 }

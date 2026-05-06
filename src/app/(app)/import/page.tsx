@@ -15,7 +15,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { formatVNDate } from "@/lib/utils";
+import { formatVND, formatVNDate } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
 
 export default async function ImportPage() {
@@ -66,7 +66,10 @@ export default async function ImportPage() {
                   <TableHead>Ngày</TableHead>
                   <TableHead>Tên file</TableHead>
                   <TableHead>Trạng thái</TableHead>
-                  <TableHead className="text-right">Tổng dòng</TableHead>
+                  <TableHead>Kỳ</TableHead>
+                  <TableHead className="text-right">Dòng GD</TableHead>
+                  <TableHead className="text-right">Hóa đơn</TableHead>
+                  <TableHead className="text-right">Doanh thu</TableHead>
                   <TableHead className="text-right">Mới</TableHead>
                   <TableHead className="text-right">Cập nhật</TableHead>
                   <TableHead className="text-right">Lỗi</TableHead>
@@ -96,7 +99,20 @@ export default async function ImportPage() {
                           : "Đã tải lên"}
                       </Badge>
                     </TableCell>
-                    <TableCell className="text-right">{imp.total_rows}</TableCell>
+                    <TableCell className="text-xs text-muted-foreground">
+                      {imp.period_start && imp.period_end
+                        ? `${formatVNDate(imp.period_start)} → ${formatVNDate(imp.period_end)}`
+                        : "—"}
+                    </TableCell>
+                    <TableCell className="text-right">
+                      {imp.transaction_line_count || imp.total_rows}
+                    </TableCell>
+                    <TableCell className="text-right">
+                      {imp.unique_invoice_count || "—"}
+                    </TableCell>
+                    <TableCell className="text-right">
+                      {imp.total_amount ? formatVND(imp.total_amount) : "—"}
+                    </TableCell>
                     <TableCell className="text-right">{imp.inserted_rows}</TableCell>
                     <TableCell className="text-right">{imp.updated_rows}</TableCell>
                     <TableCell className="text-right">{imp.error_rows}</TableCell>
