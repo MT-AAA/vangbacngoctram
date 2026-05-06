@@ -175,8 +175,13 @@ export async function parseSalesExcel(buffer: ArrayBuffer): Promise<ParseResult>
     return { rows: [], unrecognized_columns: [], recognized_columns: {}, total_rows: 0 };
   }
   const sheet = wb.Sheets[firstSheet];
+  // Use raw:true so SheetJS yields numeric cells as JS numbers (e.g. 1.5),
+  // not formatted strings ("1.5") that would then be parsed by
+  // `parseVietnameseNumber` and lose the decimal point. Dates are handled
+  // separately by `excelDateToISO`, which accepts both Date objects (when
+  // `cellDates: true` is set on `XLSX.read`) and Excel serial numbers.
   const json = XLSX.utils.sheet_to_json<Record<string, unknown>>(sheet, {
-    raw: false,
+    raw: true,
     defval: null,
     blankrows: false,
   });
