@@ -1,0 +1,182 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    /* Surface */
+    --background: 44 50% 92%; /* warm cream */
+    --foreground: 156 38% 12%; /* deep forest */
+
+    --card: 44 60% 96%; /* almost-white cream */
+    --card-foreground: 156 38% 12%;
+
+    --popover: 44 60% 96%;
+    --popover-foreground: 156 38% 12%;
+
+    --muted: 42 35% 88%;
+    --muted-foreground: 156 14% 30%;
+
+    --accent: 42 55% 90%;
+    --accent-foreground: 156 38% 12%;
+
+    /* Brand */
+    --primary: 41 65% 50%; /* gold */
+    --primary-foreground: 44 60% 97%;
+
+    --secondary: 156 45% 17%; /* forest green */
+    --secondary-foreground: 44 60% 95%;
+
+    --destructive: 0 70% 48%;
+    --destructive-foreground: 44 60% 97%;
+
+    --success: 145 55% 35%;
+    --success-foreground: 44 60% 97%;
+
+    --warning: 36 85% 50%;
+    --warning-foreground: 36 100% 14%;
+
+    --info: 220 60% 50%;
+    --info-foreground: 220 60% 96%;
+
+    --border: 41 40% 75%; /* soft gold border */
+    --input: 41 40% 75%;
+    --ring: 41 65% 50%;
+    --radius: 0.875rem;
+
+    /* Brand gold ramp */
+    --gold-50: 44 76% 97%;
+    --gold-100: 44 70% 90%;
+    --gold-200: 44 65% 80%;
+    --gold-300: 41 65% 70%;
+    --gold-400: 41 65% 60%;
+    --gold-500: 41 65% 50%;
+    --gold-600: 38 70% 42%;
+    --gold-700: 36 80% 30%;
+    --gold-800: 32 80% 20%;
+
+    /* Brand forest ramp */
+    --forest-50: 156 30% 92%;
+    --forest-100: 156 30% 80%;
+    --forest-200: 156 28% 60%;
+    --forest-300: 156 35% 35%;
+    --forest-400: 156 40% 25%;
+    --forest-500: 156 45% 17%;
+    --forest-600: 156 55% 11%;
+    --forest-700: 158 65% 8%;
+  }
+
+  .dark {
+    --background: 156 38% 8%;
+    --foreground: 44 60% 95%;
+    --card: 156 38% 12%;
+    --card-foreground: 44 60% 95%;
+    --popover: 156 38% 12%;
+    --popover-foreground: 44 60% 95%;
+    --muted: 156 28% 18%;
+    --muted-foreground: 44 30% 75%;
+    --accent: 156 28% 22%;
+    --accent-foreground: 44 60% 95%;
+    --primary: 41 65% 55%;
+    --primary-foreground: 156 38% 8%;
+    --secondary: 156 50% 20%;
+    --secondary-foreground: 44 60% 95%;
+    --destructive: 0 70% 55%;
+    --destructive-foreground: 44 60% 95%;
+    --success: 145 55% 45%;
+    --success-foreground: 44 60% 95%;
+    --warning: 36 85% 55%;
+    --warning-foreground: 156 38% 8%;
+    --border: 156 28% 22%;
+    --input: 156 28% 22%;
+    --ring: 41 65% 55%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  html, body {
+    /* Cream marble-ish gradient on the page */
+    background:
+      radial-gradient(1200px 800px at 100% 0%, hsla(44, 70%, 88%, 0.6), transparent 60%),
+      radial-gradient(1000px 700px at 0% 100%, hsla(44, 60%, 84%, 0.45), transparent 55%),
+      linear-gradient(180deg, hsl(44, 50%, 94%) 0%, hsl(44, 45%, 90%) 100%);
+    background-attachment: fixed;
+    @apply text-foreground;
+    font-feature-settings: "rlig" 1, "calt" 1;
+  }
+}
+
+@layer utilities {
+  .text-balance {
+    text-wrap: balance;
+  }
+
+  /* Brand gold gradient for accent text and buttons */
+  .text-gold {
+    background: linear-gradient(180deg, hsl(38 95% 55%), hsl(36 80% 38%));
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+  }
+  .text-forest {
+    color: hsl(156 50% 14%);
+  }
+
+  .bg-gold-gradient {
+    background: linear-gradient(135deg, hsl(44 80% 70%) 0%, hsl(38 75% 48%) 50%, hsl(36 80% 38%) 100%);
+  }
+  .bg-forest-gradient {
+    background:
+      radial-gradient(800px 400px at 50% -20%, hsla(156, 60%, 22%, 0.7), transparent 60%),
+      linear-gradient(180deg, hsl(156 60% 11%) 0%, hsl(158 65% 8%) 60%, hsl(160 70% 6%) 100%);
+  }
+
+  /* Soft cream card with gold border */
+  .card-cream {
+    background:
+      linear-gradient(180deg, hsla(44 80% 96% / 0.95), hsla(44 70% 92% / 0.85));
+    border: 1px solid hsl(41 50% 75%);
+    box-shadow:
+      0 1px 0 hsla(44 80% 100% / 0.8) inset,
+      0 1px 2px hsla(36 50% 30% / 0.06),
+      0 6px 16px hsla(36 40% 20% / 0.06);
+  }
+
+  /* Gold-rim circular icon badge */
+  .icon-rim {
+    background: radial-gradient(circle at 30% 30%, hsl(44 90% 92%), hsl(41 60% 84%));
+    border: 1px solid hsl(38 70% 55%);
+    box-shadow:
+      0 0 0 3px hsla(44 80% 100% / 0.6) inset,
+      0 1px 0 hsl(44 90% 100%) inset,
+      0 4px 12px hsla(36 60% 30% / 0.12);
+  }
+
+  /* Sidebar selected pill */
+  .sidebar-pill {
+    background: linear-gradient(135deg, hsl(44 80% 70%), hsl(36 80% 42%));
+    color: hsl(156 50% 12%);
+    box-shadow:
+      0 1px 0 hsla(44 100% 100% / 0.6) inset,
+      0 0 0 1px hsl(36 80% 38%),
+      0 8px 16px hsla(36 60% 30% / 0.25);
+  }
+}
+
+/* Custom thin scrollbar */
+@layer base {
+  *::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+  }
+  *::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  *::-webkit-scrollbar-thumb {
+    background: hsl(41 30% 70% / 0.5);
+    border-radius: 9999px;
+  }
+}
