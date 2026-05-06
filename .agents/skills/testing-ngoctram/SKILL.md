@@ -5,7 +5,7 @@ description: Test the Ngọc Trâm jewelry dashboard end-to-end. Use when verify
 
 # Testing the Ngọc Trâm dashboard
 
-This app is a Next.js 14 + Supabase dashboard for a Vietnamese jewelry shop. Phase 1 covers auth, dashboard, Excel import with dedupe, and the VAT direct-method tax engine. Phase 1.5 (PR #3) fixed signup auto-sign-in, decimal-safe Excel parsing, and the `Số HĐ` alias.
+This app is a Next.js 14 + Supabase dashboard for a Vietnamese jewelry shop. Phase 1 covers auth, dashboard, Excel import with dedupe, and the VAT direct-method tax engine. Phase 1.5 (PR #3) fixed signup auto-sign-in, decimal-safe Excel parsing, and the `Số HĐ` alias. Phase 2A (PR #5) reworked the importer for the real Vietnamese e-invoice export — see "Phase 2A importer" below before testing import flows.
 
 ## Devin secrets needed
 
@@ -54,22 +54,72 @@ Subsequent users get `role='staff'` and `store_id=NULL` until an admin assigns t
 
 **This is why the DB reset must include `delete from public.profiles` — leaving a profile row makes the next signup get `role='staff'` instead of admin.**
 
+## Phase 2A importer (PR #5)
+
+The real export is the Vietnamese e-invoice "Báo cáo bán hàng chi tiết". The Phase 2A parser handles its specific quirks — when in doubt run the test fixture instead of crafting a synthetic file:
+
+```
+npm test
+```
+
+uses `node --import tsx --test src/lib/excel/__tests__/parse.test.ts` and verifies the seven acceptance criteria against `src/lib/excel/__tests__/fixtures/2803122425_Bao_cao_ban_hang_chi_tiet_2026-01-01_2026-03-31.xlsx`: 406 lines, 6,919,680,000 VND total, date range 2026-01-03 → 2026-03-30, 341 unique invoice_keys, 406 unique transaction_hashes, multi-line invoices preserved (e.g. invoice 74 has 2 rows), summary row "Tổng cộng:" skipped.
+
+Key invariants the parser enforces:
+
+- **Header row is dynamic** — scanned in the first 20 rows. The real export has the header at row 8, but never hard-code that.
+- **`Sheet1` `!ref` is wrong on the real export** (it covers only the title block). The parser rebuilds the used range by scanning all cell keys; rely on this rather than `decode_range(sheet["!ref"])`.
+- **Data rows = numeric STT only.** Title rows, company info, blank rows, and the `Tổng cộng:` summary row are filtered out by checking that `STT` is a number.
+- **Vietnamese `dd/MM/yyyy HH:mm`** dates only. `parseInvoiceDate("03/01/2026 16:06") === "2026-01-03T16:06:00"`. If you ever see `2026-03-01` in tests, the parser regressed to US format.
+- **Decimal `Số lượng` preserved** (1.5 stays 1.5, never 15). Combine with the PR #3 `raw:true` fix.
+- **Two identifiers per row** — never use `invoice_no` alone:
+  - `invoice_key = sha256(store_id | invoice_series | invoice_no | tax_authority_code)` — groups multi-line invoices.
+  - `transaction_hash = sha256(invoice_key | source_stt | product_name_raw | unit | quantity | unit_price | total_amount)` — per-line dedupe key.
+  See `src/lib/excel/hash.ts` for `invoiceKey()` / `transactionHash()` / `rowIdentifiers()`.
+- **VAT direct method**: `Thuế GTGT đầu ra VNĐ` is stored verbatim in `vat_output_amount_from_invoice` for reconciliation only. It is **not** VAT payable. Imported rows have `purchase_cost_amount = null` + `purchase_cost_source = 'unknown'`; the existing `compute_sales_value_added` trigger sets `tax_calculation_status = 'missing_purchase_cost'` automatically. Don't try to fill VAT payable from the invoice.
+- **Columns from `AY` onwards** (xăng/dầu telemetry) are intentionally ignored.
+
+`import_files` now stores `period_start`, `period_end`, `transaction_line_count`, `unique_invoice_count`, `total_amount`. The `/import` page shows these per row in the history table.
+
+## Classification matching
+
+`src/lib/classification.ts` uses **whole-word regex** on the lowercased + NFC-normalized product name. There is no diacritic-stripped fallback, because that turns the standalone keyword `tây` into a false positive against `Lắc tay`. Stripped variants (`vang tay`, `vang ta`, `bac`) must be seeded explicitly — `seed_store_defaults` already includes them.
+
+Spec invariants the classifier MUST satisfy (covered by `parse.test.ts`):
+
+- `Vàng`, `Lắc tay`, `Bông tai vàng` → unclassified ("Cần xử lý").
+- `Dây chuyền vàng tây 10k`, `Vòng vàng ta 24k`, `Lắc bạc thái` → matched to the right category.
+
 ## Excel column aliases (parse.ts)
 
-The import accepts these Vietnamese / English headers (case-insensitive). When generating sample files, use any of them:
+For Phase 2A's e-invoice flow these are the canonical Vietnamese headers (case-insensitive, whitespace-collapsed). Use the canonical form; ASCII-stripped fallbacks are also accepted where shown.
 
 | Field | Aliases |
 |---|---|
-| sale_date | ngày, ngay, ngày bán, date, sale date |
-| invoice_no | số hóa đơn, so hoa don, hóa đơn, hoa don, mã, ma, invoice, invoice no, **số hđ, so hd, số hd, hđ, hd** *(added in PR #3)* |
-| product_name_raw | tên hàng, ten hang, sản phẩm, san pham, tên sản phẩm, diễn giải, product, name |
-| quantity | số lượng, so luong, qty, sl |
-| weight | trọng lượng, trong luong, khối lượng, kl, chỉ, chi |
-| unit_price | đơn giá, don gia, giá bán, gia ban, đơn giá bán, unit price |
-| total_amount | thành tiền, thanh tien, tổng tiền, tong tien, tổng cộng, total |
-| purchase_cost_amount | giá mua vào, gia mua vao, giá vốn, gia von, giá nhập, gia nhap, purchase cost, cost |
-| customer_name | khách hàng, khach hang, customer, tên khách |
-| customer_phone | số điện thoại, so dien thoai, điện thoại, dien thoai, phone |
+| invoice_template_code | ký hiệu mẫu hóa đơn / ky hieu mau hoa don |
+| invoice_series | ký hiệu hóa đơn / ky hieu hoa don |
+| invoice_no | số hóa đơn / so hoa don / **số hđ, so hd** *(PR #3)* / invoice |
+| invoice_date (→ sale_date) | ngày, tháng, năm lập hóa đơn / ngày lập hóa đơn / ngày |
+| customer_name | tên khách hàng / khách hàng |
+| customer_tax_code | mã số thuế / ma so thue |
+| customer_address | địa chỉ / dia chi |
+| product_code | mã hàng hóa / ma hang hoa |
+| product_name_raw | tên hàng hóa / ten hang hoa / tên hàng / sản phẩm / diễn giải |
+| unit | đvt / dvt / đơn vị tính |
+| quantity | số lượng / so luong / qty / sl |
+| unit_price | đơn giá / don gia / unit price |
+| sales_amount_before_tax | doanh số bán hàng chưa thuế vnđ |
+| vat_output_amount_from_invoice | thuế gtgt đầu ra vnđ |
+| total_amount | tổng cộng vnđ / thành tiền / tổng tiền / total |
+| currency | đơn vị tiền tệ |
+| currency_rate | tỷ giá |
+| payment_method | phương thức thanh toán (fallback: hình thức thanh toán) |
+| payment_status | trạng thái thanh toán |
+| invoice_status | trạng thái hóa đơn |
+| tax_authority_status | trạng thái gửi cqt |
+| tax_authority_code | mã cqt cấp |
+| source_stt / source_row_number | populated from STT cell + Excel row index |
+
+`weight` is no longer a parser-side field — gold/silver weight comes from `unit` (`chỉ`, `lượng`, etc.) plus `quantity`. The DB column still exists but Phase 2A leaves it null.
 
 ## Generating a sample sales Excel
 
