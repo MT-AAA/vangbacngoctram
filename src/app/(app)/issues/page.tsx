@@ -64,7 +64,7 @@ export default async function IssuesPage() {
       href: "/issues/estimated",
       label: "Đang tính ước tính",
       description:
-        "Giá vốn được lấy theo trung bình. Cần thay bằng giá thực khi có dữ liệu kho.",
+        "Giá vốn lấy theo giá mua bình quân từ khách. Có thể thay bằng giá vốn thực khi nhập tay.",
       icon: Sparkles,
       count: counts.estimated,
       tone: "warning",

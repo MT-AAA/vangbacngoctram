@@ -18,6 +18,7 @@ import { Badge } from "@/components/ui/badge";
 import { formatVND, formatVNDate } from "@/lib/utils";
 import { CreatePeriodForm } from "@/components/tax/create-period-form";
 import { RecalcButton } from "@/components/tax/recalc-button";
+import { ApplyAverageCostButton } from "@/components/tax/apply-average-cost-button";
 
 export default async function TaxReportsPage() {
   const supabase = createClient();
@@ -136,7 +137,13 @@ export default async function TaxReportsPage() {
                           )}
                         </TableCell>
                         <TableCell>
-                          <RecalcButton periodId={p.id} />
+                          <div className="flex flex-wrap items-center gap-2">
+                            <RecalcButton periodId={p.id} />
+                            <ApplyAverageCostButton
+                              periodId={p.id}
+                              periodLocked={p.is_locked}
+                            />
+                          </div>
                         </TableCell>
                       </TableRow>
                     );
