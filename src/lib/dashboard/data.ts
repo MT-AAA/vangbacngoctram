@@ -129,6 +129,7 @@ export type DashboardSummary = {
     negativeCarriedOut: number; // from latest tax_report
     missingCount: number;
     estimatedCount: number;
+    unclassifiedCount: number;
     totalTransactions: number;
   };
   changeVsPrev: {
@@ -184,6 +185,7 @@ export async function loadDashboard(period: PeriodKey): Promise<DashboardSummary
     { count: totalCount },
     { count: missingCount },
     { count: estimatedCount },
+    { count: unclassifiedCount },
     { data: latestReport },
     { data: prevReport },
     { data: vatPeriods },
@@ -213,12 +215,19 @@ export async function loadDashboard(period: PeriodKey): Promise<DashboardSummary
       .from("sales_transactions")
       .select("id", { count: "exact", head: true })
       .eq("tax_calculation_status", "missing_purchase_cost")
+      .eq("is_intentionally_ignored", false)
       .gte("sale_date", fromISO)
       .lte("sale_date", toISOEnd),
     supabase
       .from("sales_transactions")
       .select("id", { count: "exact", head: true })
       .eq("tax_calculation_status", "estimated")
+      .gte("sale_date", fromISO)
+      .lte("sale_date", toISOEnd),
+    supabase
+      .from("sales_transactions")
+      .select("id", { count: "exact", head: true })
+      .is("product_category_id", null)
       .gte("sale_date", fromISO)
       .lte("sale_date", toISOEnd),
     supabase
@@ -403,6 +412,7 @@ export async function loadDashboard(period: PeriodKey): Promise<DashboardSummary
       negativeCarriedOut,
       missingCount: missingCount ?? 0,
       estimatedCount: estimatedCount ?? 0,
+      unclassifiedCount: unclassifiedCount ?? 0,
       totalTransactions: totalCount ?? 0,
     },
     changeVsPrev: {
