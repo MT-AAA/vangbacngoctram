@@ -1,4 +1,8 @@
 import { createClient } from "@/lib/supabase/server";
+import {
+  loadDashboardCustomerPurchases,
+  type DashboardCustomerPurchaseSummary,
+} from "@/lib/customer-purchases/queries";
 
 export type PeriodKey = "day" | "month" | "quarter" | "year";
 
@@ -166,6 +170,7 @@ export type DashboardSummary = {
     quantity: number;
     weight_kg: number;
   }>;
+  customerPurchases: DashboardCustomerPurchaseSummary;
 };
 
 export async function loadDashboard(period: PeriodKey): Promise<DashboardSummary> {
@@ -193,6 +198,7 @@ export async function loadDashboard(period: PeriodKey): Promise<DashboardSummary
     { data: recent },
     { data: imports },
     { data: inventory },
+    customerPurchases,
   ] = await Promise.all([
     supabase
       .from("sales_transactions")
@@ -268,6 +274,10 @@ export async function loadDashboard(period: PeriodKey): Promise<DashboardSummary
         "quantity_on_hand, weight, category:product_categories(name, code)"
       )
       .eq("status", "in_stock"),
+    loadDashboardCustomerPurchases(supabase, {
+      from: fromISO,
+      to: toISOEnd,
+    }),
   ]);
 
   // Aggregate totals
@@ -435,5 +445,6 @@ export async function loadDashboard(period: PeriodKey): Promise<DashboardSummary
       error_rows: i.error_rows ?? 0,
     })),
     inventorySnapshot,
+    customerPurchases,
   };
 }
