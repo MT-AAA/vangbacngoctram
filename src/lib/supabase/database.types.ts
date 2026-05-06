@@ -116,63 +116,81 @@ export type Database = {
       }
       customer_purchases: {
         Row: {
+          attachment_url: string | null
           becomes_inventory: boolean
           created_at: string
           created_by: string | null
           customer_id_card: string | null
           customer_name: string | null
           customer_phone: string | null
+          customer_tax_code: string | null
           id: string
+          image_url: string | null
           inventory_item_id: string | null
+          is_tax_purchase_input: boolean
           notes: string | null
           product_category_id: string | null
           product_name: string
           purchase_date: string
+          purity: string | null
           quantity: number
           store_id: string
           total_amount: number
+          unit: string | null
           unit_price: number
           updated_at: string
           weight: number | null
           weight_unit: string
         }
         Insert: {
+          attachment_url?: string | null
           becomes_inventory?: boolean
           created_at?: string
           created_by?: string | null
           customer_id_card?: string | null
           customer_name?: string | null
           customer_phone?: string | null
+          customer_tax_code?: string | null
           id?: string
+          image_url?: string | null
           inventory_item_id?: string | null
+          is_tax_purchase_input?: boolean
           notes?: string | null
           product_category_id?: string | null
           product_name: string
           purchase_date: string
+          purity?: string | null
           quantity?: number
           store_id: string
           total_amount?: number
+          unit?: string | null
           unit_price?: number
           updated_at?: string
           weight?: number | null
           weight_unit?: string
         }
         Update: {
+          attachment_url?: string | null
           becomes_inventory?: boolean
           created_at?: string
           created_by?: string | null
           customer_id_card?: string | null
           customer_name?: string | null
           customer_phone?: string | null
+          customer_tax_code?: string | null
           id?: string
+          image_url?: string | null
           inventory_item_id?: string | null
+          is_tax_purchase_input?: boolean
           notes?: string | null
           product_category_id?: string | null
           product_name?: string
           purchase_date?: string
+          purity?: string | null
           quantity?: number
           store_id?: string
           total_amount?: number
+          unit?: string | null
           unit_price?: number
           updated_at?: string
           weight?: number | null

@@ -1,4 +1,4 @@
-import { ShoppingBag, ShoppingCart, Scale, FileText, ArrowDownCircle, AlertTriangle, Sparkles, FileSpreadsheet, CheckCircle2, Boxes, Clock, ArrowRight } from "lucide-react";
+import { ShoppingBag, ShoppingCart, Scale, FileText, ArrowDownCircle, AlertTriangle, Sparkles, FileSpreadsheet, CheckCircle2, Boxes, Clock, ArrowRight, Users } from "lucide-react";
 import Link from "next/link";
 import { loadDashboard, type PeriodKey } from "@/lib/dashboard/data";
 import { KpiCard } from "@/components/dashboard/kpi-card";
@@ -244,6 +244,20 @@ export default async function DashboardPage({
                 tone="warning"
                 href="/issues/estimated"
               />
+              <ActionRow
+                icon={<Users className="h-4 w-4 text-amber-700" />}
+                label="giao dịch mua thiếu phân loại"
+                count={data.customerPurchases.missingCategoryCount}
+                tone="warning"
+                href="/customer-purchases?category=none"
+              />
+              <ActionRow
+                icon={<Users className="h-4 w-4 text-rose-600" />}
+                label="giao dịch mua thiếu số tiền"
+                count={data.customerPurchases.missingAmountCount}
+                tone="destructive"
+                href="/customer-purchases"
+              />
             </ul>
             <div className="mt-3">
               <a
@@ -355,6 +369,117 @@ export default async function DashboardPage({
             </ul>
           )}
         </div>
+      </div>
+
+      {/* Customer purchases section */}
+      <div className="card-cream rounded-2xl p-4 lg:p-5">
+        <div className="flex items-center justify-between mb-3 flex-wrap gap-2">
+          <div className="flex items-center gap-2">
+            <Users className="h-4 w-4 text-emerald-800" />
+            <h2 className="text-base font-semibold text-forest">
+              Mua từ khách trong kỳ
+            </h2>
+          </div>
+          <Link
+            href="/customer-purchases"
+            className="text-xs text-emerald-900/65 hover:text-emerald-900 inline-flex items-center gap-1"
+          >
+            Xem tất cả <ArrowRight className="h-3 w-3" />
+          </Link>
+        </div>
+        <div className="grid grid-cols-1 gap-3 lg:grid-cols-3">
+          <div className="rounded-xl bg-amber-50/70 ring-1 ring-amber-300/40 p-3">
+            <div className="text-[11px] text-emerald-900/60">
+              Tổng mua từ khách
+            </div>
+            <div className="mt-1 text-lg font-semibold text-gold">
+              {formatVND(data.customerPurchases.totalAmount)}
+            </div>
+            <div className="text-[11px] text-emerald-900/60 mt-0.5">
+              {formatNumber(data.customerPurchases.totalRows, 0)} giao dịch
+            </div>
+          </div>
+          <div className="rounded-xl bg-amber-50/70 ring-1 ring-amber-300/40 p-3">
+            <div className="text-[11px] text-emerald-900/60">
+              Tính vào giá vốn bình quân
+            </div>
+            <div className="mt-1 text-lg font-semibold text-emerald-800">
+              {formatVND(data.customerPurchases.taxInputAmount)}
+            </div>
+            <div className="text-[11px] text-emerald-900/60 mt-0.5">
+              {formatNumber(data.customerPurchases.taxInputRows, 0)} giao dịch
+            </div>
+          </div>
+          <div className="rounded-xl bg-amber-50/70 ring-1 ring-amber-300/40 p-3">
+            <div className="text-[11px] text-emerald-900/60">
+              Cần kiểm tra
+            </div>
+            <div className="mt-1 text-sm text-emerald-950 space-y-0.5">
+              <div>
+                Thiếu phân loại:{" "}
+                <span className="font-semibold">
+                  {data.customerPurchases.missingCategoryCount}
+                </span>
+              </div>
+              <div>
+                Thiếu số tiền:{" "}
+                <span className="font-semibold">
+                  {data.customerPurchases.missingAmountCount}
+                </span>
+              </div>
+            </div>
+          </div>
+        </div>
+        {data.customerPurchases.recent.length === 0 ? (
+          <p className="mt-3 text-sm text-emerald-900/55">
+            Chưa có giao dịch mua từ khách nào trong kỳ.
+          </p>
+        ) : (
+          <div className="mt-3 overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="text-left text-[11px] uppercase tracking-wide text-emerald-900/55 border-b border-amber-300/40">
+                  <th className="py-2 pr-3">Ngày</th>
+                  <th className="py-2 pr-3">Khách hàng</th>
+                  <th className="py-2 pr-3">Sản phẩm</th>
+                  <th className="py-2 pr-3">Phân loại</th>
+                  <th className="py-2 pr-3 text-right">Số tiền</th>
+                  <th className="py-2 pr-3">Tính giá vốn</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-amber-300/30">
+                {data.customerPurchases.recent.map((r) => (
+                  <tr key={r.id}>
+                    <td className="py-2 pr-3 text-emerald-900/85 whitespace-nowrap">
+                      {formatVNDate(r.purchase_date)}
+                    </td>
+                    <td className="py-2 pr-3 text-emerald-950">
+                      {r.customer_name ?? "—"}
+                    </td>
+                    <td className="py-2 pr-3 text-emerald-950 max-w-[260px] truncate">
+                      {r.product_name}
+                    </td>
+                    <td className="py-2 pr-3 text-emerald-900/85">
+                      {r.category_name ?? "Chưa phân loại"}
+                    </td>
+                    <td className="py-2 pr-3 text-right text-emerald-950 font-medium">
+                      {formatVND(r.total_amount)}
+                    </td>
+                    <td className="py-2 pr-3">
+                      {r.is_tax_purchase_input ? (
+                        <span className="inline-flex items-center gap-1 text-xs text-emerald-700 font-medium">
+                          <CheckCircle2 className="h-3 w-3" /> Có
+                        </span>
+                      ) : (
+                        <span className="text-xs text-emerald-900/55">Không</span>
+                      )}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
       </div>
     </div>
   );
