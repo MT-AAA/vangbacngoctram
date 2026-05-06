@@ -14,7 +14,7 @@ All four are required (saved at org scope):
 - `NEXT_PUBLIC_SUPABASE_URL`
 - `NEXT_PUBLIC_SUPABASE_ANON_KEY`
 - `SUPABASE_SERVICE_ROLE_KEY`
-- `SUPABASE_DB_URL` — direct postgres URL (pooler, port 5432). Used for the `psql` workarounds below.
+- `SUPABASE_DB_URL` — direct postgres URL (pooler, port 5432). Used for the SQL workarounds below.
 
 The environment-config maintenance script writes `.env.local` from these on session boot.
 
@@ -28,21 +28,39 @@ curl -s -o /dev/null -w "HTTP %{http_code}\n" http://localhost:3000/login   # ex
 
 The Next.js app expects `.env.local` to be populated. If it isn't, copy from the saved secrets manually.
 
+**Stale-server gotcha:** a previous session's `npm run dev` may already be holding port 3000 from the snapshot, in which case Next.js silently rebinds to 3001. Before booting, run `pkill -f 'next dev'` and verify with `ss -ltnp | grep ':300'`. Otherwise your screenshots will be on port 3001 (still works, but inconsistent across sessions).
+
 **Pitfall:** Do NOT run `npm run build` while `npm run dev` is also running. The build overwrites `.next/` and the dev server then serves stale chunks; you'll see `GET /_next/static/chunks/... 404` in the dev log and the page renders only the giant NT logo decoration with no UI. Recovery: `pkill -f "next dev"; rm -rf .next; npm run dev > /tmp/devserver.log 2>&1 &`. If you need a build to verify CI, run it on a separate worktree or after stopping dev.
 
-## Auth quirk — signup does NOT auto-sign-in
+## SQL access — `psql` may not be available
 
-Supabase has email confirmation enabled by default on this project. `supabase.auth.signUp()` creates the user + DB trigger fires + admin profile + store + categories + classification rules + tax_settings are all seeded, but the call returns no session, so a redirect to `/dashboard` would bounce back to `/login`.
-
-As of PR #3 the form handles this gracefully — it shows a toast `"Tạo tài khoản thành công" / "Vui lòng kiểm tra email…"` and switches to sign-in mode. For tests you still need to confirm the email via SQL because the dev environment can't actually click the email link:
+The Devin VM does NOT always have `postgresql-client` installed, and `apt-get install` may 404 on the package. When that happens, run SQL via Node + the `pg` package, which the project doesn't depend on but installs cleanly:
 
 ```
-psql "$SUPABASE_DB_URL" -c "update auth.users set email_confirmed_at = now() where email = 'YOUR_TEST_EMAIL';"
+cd /home/ubuntu/repos/vangbacngoctram
+npm i --no-save pg     # adds node_modules/pg without touching package.json
 ```
 
-Note: `confirmed_at` is a generated column — only update `email_confirmed_at`. Trying to update both in one statement aborts the whole transaction.
+…then put the probe script *inside the repo dir* (so Node's ESM resolver finds `node_modules/pg`):
 
-## How the first user becomes admin
+```js
+// /home/ubuntu/repos/vangbacngoctram/_devin_probe.mjs
+import pg from 'pg';
+const { Client } = pg;
+const c = new Client({
+  connectionString: process.env.SUPABASE_DB_URL,
+  ssl: { rejectUnauthorized: false },
+});
+await c.connect();
+console.log((await c.query('select count(*) from public.sales_transactions')).rows);
+await c.end();
+```
+
+run with `node _devin_probe.mjs`. Always delete `_devin_*.mjs` before committing — they are session-scratch.
+
+If `psql` *is* available (`which psql` succeeds), prefer it for one-shot queries — it's terser. The existing examples below use `psql` syntax; both are equivalent.
+
+## Auth quirks — two paths to a logged-in admin
 
 The DB trigger `public.handle_new_user()` (in `supabase/migrations/20250506000001_init.sql:416`) fires on every `auth.users` insert. If `profiles` is empty, it:
 
@@ -50,9 +68,45 @@ The DB trigger `public.handle_new_user()` (in `supabase/migrations/2025050600000
 2. inserts a `profiles` row with `role='admin'` linked to that store,
 3. calls `seed_store_defaults(store_id)` which seeds three product_categories (Vàng ta / Vàng tây / Bạc), classification_rules, and tax_settings.
 
-Subsequent users get `role='staff'` and `store_id=NULL` until an admin assigns them.
+Subsequent users get `role='staff'` and `store_id=NULL` until an admin assigns them. **The DB reset must include `delete from public.profiles` — leaving a profile row makes the next signup get `role='staff'` instead of admin.**
 
-**This is why the DB reset must include `delete from public.profiles` — leaving a profile row makes the next signup get `role='staff'` instead of admin.**
+For automated tests there are two ways to get a logged-in admin user:
+
+### Path A (preferred for test-mode setup) — Supabase admin API
+
+Creates the user pre-confirmed, fires the same trigger, no email-confirm SQL needed:
+
+```js
+await fetch(`${process.env.NEXT_PUBLIC_SUPABASE_URL}/auth/v1/admin/users`, {
+  method: 'POST',
+  headers: {
+    apikey: process.env.SUPABASE_SERVICE_ROLE_KEY,
+    Authorization: `Bearer ${process.env.SUPABASE_SERVICE_ROLE_KEY}`,
+    'content-type': 'application/json',
+  },
+  body: JSON.stringify({
+    email: 'test-XYZ@ngoctram.local',
+    password: 'Test1234!',
+    email_confirm: true,    // <- skips the confirm step entirely
+    user_metadata: { full_name: 'Test User', store_name: 'Test Store' },
+  }),
+});
+```
+
+Then sign in via the UI through Playwright/CDP at `localhost:29229` — the recording starts on `/dashboard`.
+
+### Path B (for testing the actual signup form) — UI signup + email-confirm SQL
+
+Supabase has email confirmation enabled by default on this project. `supabase.auth.signUp()` creates the user, the trigger fires + admin profile + store + categories + classification rules + tax_settings are all seeded, but the call returns no session, so a redirect to `/dashboard` would bounce back to `/login`. As of PR #3 the form handles this gracefully — it shows a toast `"Tạo tài khoản thành công" / "Vui lòng kiểm tra email…"` and switches to sign-in mode. For tests you still need to confirm the email via SQL because the dev environment can't actually click the email link:
+
+```
+psql "$SUPABASE_DB_URL" -c \
+  "update auth.users set email_confirmed_at = now() where email = 'YOUR_TEST_EMAIL';"
+```
+
+**Note:** `confirmed_at` is a generated column — only update `email_confirmed_at`. Trying to update both in one statement aborts the whole transaction.
+
+Path B is the only way to verify the signup-form code path (toast text, mode switch, etc.). Use Path A for everything else — it's faster.
 
 ## Phase 2A importer (PR #5)
 
@@ -79,6 +133,10 @@ Key invariants the parser enforces:
 - **Columns from `AY` onwards** (xăng/dầu telemetry) are intentionally ignored.
 
 `import_files` now stores `period_start`, `period_end`, `transaction_line_count`, `unique_invoice_count`, `total_amount`. The `/import` page shows these per row in the history table.
+
+For end-to-end testing of the Phase 2A flow, the golden path is: Path-A signup → upload `src/lib/excel/__tests__/fixtures/2803122425_Bao_cao_ban_hang_chi_tiet_2026-01-01_2026-03-31.xlsx` → preview should show **406 / 341 / 406 / 6.919.680.000 ₫ / 03/01/2026 → 30/03/2026** → commit (Mới=406) → re-upload (Mới=0, Cập nhật=406) → on `/sales`, filter to 04/02/2026 to see invoice 74 as 2 distinct rows, and to 22/03/2026 to see the three spec-mandated unclassified rows (Vàng / Lắc tay / Bông tai vàng) plus contrast cases (Bông tây, Lắc tay vàng tây 10K) that *are* classified.
+
+Uploading the fixture via the UI: the `/import` page has a real `<input type="file">`, so use Playwright's `page.setInputFiles('input[type=file]', fixturePath)` over CDP at `localhost:29229` — file pickers via raw computer-use clicks are flaky.
 
 ## Classification matching
 
@@ -148,25 +206,15 @@ XLSX.writeFile(wb, '/tmp/sample-sales-v2.xlsx');
 
 ## Excel parsing foot-guns (history)
 
-The decimal bug had **two root causes** — both have to be fixed for it to work:
+- **PR #3** (Phase 1.5): added the `Số HĐ` / `số hđ` alias to `invoice_no`. Before this, the `gen-sample-xlsx.js` example above triggered `Lỗi: Số hóa đơn` for every row.
+- **PR #3** (Phase 1.5): two-part fix for decimal `Trọng lượng`:
+  1. `XLSX.read(buf, { type: 'buffer', raw: true })` — keeps numeric cells as JS numbers.
+  2. The `toNumber()` helper short-circuits when `typeof v === 'number'`, avoiding the lossy `String(v).replace(',', '.')` round-trip that was turning 1.5 into 15.
+- **PR #5** (Phase 2A): kept (1) and (2), added the dynamic-header / two-identifier / Vietnamese-date overhaul above.
 
-1. `parseVietnameseNumber` strips `.` even when given a JS number, because the caller wraps everything in `String(v)`. **Fix:** introduce a `toNumber()` helper that short-circuits when `typeof v === 'number'`. Done in PR #3 commit 1.
-2. `XLSX.utils.sheet_to_json(sheet, { raw: false, … })` makes SheetJS return *formatted strings* (`"1.5"`) for numeric cells, which means the number short-circuit is unreachable. **Fix:** use `raw: true`. `excelDateToISO` already handles both `Date` objects (from `cellDates: true`) and Excel serial numbers, so dates stay correct. Done in PR #3 commit 2 (post-test).
+## Reset script (full)
 
-If you see decimal weights stripped to integers in a future PR, check both points before assuming a different bug.
-
-## Classification keyword priorities (for sample data)
-
-Lowest priority wins (most specific keyword):
-
-- 10: `bạc` / `bac` → Bạc
-- 20: `18k`, `14k`, `10k`, `vàng tây`, `vang tay` → Vàng tây
-- 25: `tây` → Vàng tây (lower priority — fires after 18k/14k)
-- 30: `9999`, `999`, `24k`, `vàng ta`, `vang ta` → Vàng ta
-
-Product names containing "vàng tây" should test the `tây` priority case to make sure it doesn't get classified as Vàng ta when only the standalone `tây` keyword would match.
-
-## Resetting the test database
+Use before any signup test to ensure the new user becomes admin and the seed runs from scratch:
 
 ```
 psql "$SUPABASE_DB_URL" <<'SQL'
@@ -184,44 +232,4 @@ delete from auth.users;
 SQL
 ```
 
-Deleting from `auth.users` cascades to `profiles` via the foreign key, but explicit ordering above keeps the script idempotent if cascades are disabled.
-
-**Verify the reset:**
-```
-psql "$SUPABASE_DB_URL" -c "select (select count(*) from auth.users) as users, (select count(*) from public.profiles) as profiles, (select count(*) from public.stores) as stores;"
-```
-
-All three should be `0`. If `users=0` but `profiles>0`, the next signup will hit a unique-constraint error.
-
-## Clearing browser session between test runs
-
-If you need to log out a previously authenticated user from the browser (e.g. to retest signup), the computer-use `console` action sometimes fails with `"Chrome is not in the foreground"` even when Chrome is visibly the active window. Workarounds in order of preference:
-
-1. Just navigate to `/login` from the URL bar — the middleware will let you re-authenticate even with stale cookies.
-2. The sign-out endpoint is POST-only, so navigating directly to `/auth/sign-out` returns 405. Don't bother.
-3. If you really need to clear cookies, use Playwright via the Chrome DevTools Protocol at `http://localhost:29229` (it's exposed by the Devin browser session). Install `playwright` first if not already in the project, then `await context.clearCookies()`.
-
-## Golden-path test order
-
-1. Reset DB (above) so the first signup hits the admin-promotion branch.
-2. Boot dev server. Do NOT run `npm run build` after this.
-3. Sign up at `/login` (form is the same component, just toggled into signup mode).
-4. Verify the new toast wording: title `"Tạo tài khoản thành công"`, description `"Vui lòng kiểm tra email…"`, form auto-switches to sign-in mode, password cleared.
-5. Run the SQL email-confirm workaround.
-6. Sign in with the same credentials (form is already in signin mode).
-7. Verify dashboard loads with luxury theme + role chip "Quản trị viên".
-8. `/import` → upload sample (with `Số HĐ` header + decimal weights) → preview → commit. Then upload again to verify dedupe (`Mới=0, Cập nhật=N`).
-9. `/sales` → confirm rows with decimals shown as `1,5` / `0,8` + missing-cost row marked "Thiếu giá vốn".
-10. `/tax-reports` → create monthly period for the test month → confirm VAT numbers.
-11. Back to `/dashboard` → confirm bar chart shows the new period.
-
-## Recording tips
-
-- Maximize Chrome before recording: `wmctrl -r "Google Chrome" -b add,maximized_vert,maximized_horz`. Avoid `xdotool key super+Up` (tiles to half-screen on Plasma).
-- Native file picker: click the file input, then in the dialog use `Ctrl+L` to open a path entry, type the absolute path, press Enter, then click Open. Or just navigate `/tmp` in the picker.
-- Annotate setup steps (signup, email-confirm SQL) as `type=setup`, then use one `test_start`/`assertion` pair per of the golden-path tests.
-- If a test discovers a bug and you fix it mid-recording, annotate the fix as a `setup` step with a clear description so the viewer understands why the next preview looks different.
-
-## What's stubbed for Phase 2 (don't try to test these)
-
-Sidebar links `/categories`, `/customer-purchases`, `/inventory`, `/reports`, `/audit-logs`, `/settings` exist but are placeholder pages. Phase 2 will fill them in.
+If `psql` isn't available, paste the same SQL into a Node-pg probe (see "SQL access" above).
