@@ -30,6 +30,7 @@ import {
 } from "@/lib/customer-purchases/schema";
 import {
   formatVNDate,
+  formatNumberForInput,
   parseVietnameseNumber,
 } from "@/lib/utils";
 import type { CustomerPurchaseListRow } from "@/lib/customer-purchases/queries";
@@ -114,16 +115,22 @@ function hydrateForm(row: CustomerPurchaseListRow): FormState {
     product_category_id: row.product_category_id ?? CATEGORY_NONE,
     purity: row.purity ?? PURITY_NONE,
     unit: row.unit ?? "chỉ",
-    weight: row.weight !== null && row.weight !== undefined ? String(row.weight) : "",
+    weight:
+      row.weight !== null && row.weight !== undefined
+        ? formatNumberForInput(Number(row.weight), 4)
+        : "",
     weight_unit: row.weight_unit ?? "chỉ",
-    quantity: row.quantity !== null && row.quantity !== undefined ? String(row.quantity) : "1",
+    quantity:
+      row.quantity !== null && row.quantity !== undefined
+        ? formatNumberForInput(Number(row.quantity), 4)
+        : "1",
     unit_buy_price:
       row.unit_price !== null && row.unit_price !== undefined
-        ? String(row.unit_price)
+        ? formatNumberForInput(Number(row.unit_price), 0)
         : "",
     total_buy_amount:
       row.total_amount !== null && row.total_amount !== undefined
-        ? String(row.total_amount)
+        ? formatNumberForInput(Number(row.total_amount), 0)
         : "",
     is_tax_purchase_input: row.is_tax_purchase_input ?? true,
     add_to_inventory: row.becomes_inventory ?? true,

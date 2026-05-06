@@ -41,6 +41,27 @@ export function formatVNDate(date: Date | string | null | undefined): string {
   });
 }
 
+/**
+ * Render a JS `number` for use as the `value` of a controlled text input on
+ * the Vietnamese-locale forms. Produces `"1,5"` / `"4200000"` (NO thousands
+ * separators — which would visually conflict with the user typing) so the
+ * string round-trips losslessly through {@link parseVietnameseNumber}.
+ *
+ * Without this helper, `String(1.5) === "1.5"`; the parser then treats the
+ * `.` as a thousands separator and silently produces `15`, inflating any
+ * decimal value 10× on edit.
+ */
+export function formatNumberForInput(
+  value: number,
+  maxFractionDigits = 4
+): string {
+  if (!Number.isFinite(value)) return "";
+  return new Intl.NumberFormat("vi-VN", {
+    maximumFractionDigits: maxFractionDigits,
+    useGrouping: false,
+  }).format(value);
+}
+
 export function parseVietnameseNumber(input: string | number | null | undefined): number | null {
   if (input === null || input === undefined) return null;
   if (typeof input === "number") return Number.isFinite(input) ? input : null;
