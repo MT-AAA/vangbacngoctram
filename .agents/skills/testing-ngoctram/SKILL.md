@@ -1,11 +1,11 @@
 ---
 name: testing-ngoctram
-description: Test the Ngọc Trâm jewelry dashboard end-to-end. Use when verifying signup, Excel sales import, classification, dashboard KPIs, or VAT direct-method tax-period flows.
+description: Test the Ngọc Trâm jewelry dashboard end-to-end. Use when verifying signup, Excel sales import, classification, dashboard KPIs, customer purchases, or VAT direct-method tax-period flows.
 ---
 
 # Testing the Ngọc Trâm dashboard
 
-This app is a Next.js 14 + Supabase dashboard for a Vietnamese jewelry shop. Phase 1 covers auth, dashboard, Excel import with dedupe, and the VAT direct-method tax engine. Phase 1.5 (PR #3) fixed signup auto-sign-in, decimal-safe Excel parsing, and the `Số HĐ` alias. Phase 2A (PR #5) reworked the importer for the real Vietnamese e-invoice export — see "Phase 2A importer" below before testing import flows.
+This app is a Next.js 14 + Supabase dashboard for a Vietnamese jewelry shop. Phase 1 covers auth, dashboard, Excel import with dedupe, and the VAT direct-method tax engine. Phase 1.5 (PR #3) fixed signup auto-sign-in, decimal-safe Excel parsing, and the `Số HĐ` alias. Phase 2A (PR #5) reworked the importer for the real Vietnamese e-invoice export — see "Phase 2A importer" below before testing import flows. Phase 2C (PR #8 + decimal-fix PR #9) added `/customer-purchases` — see "Phase 2C customer purchases" below.
 
 ## Devin secrets needed
 
@@ -45,9 +45,15 @@ npm i --no-save pg     # adds node_modules/pg without touching package.json
 
 ```js
 // /home/ubuntu/repos/vangbacngoctram/_devin_probe.mjs
+import { readFileSync } from 'node:fs';
 import pg from 'pg';
-const { Client } = pg;
-const c = new Client({
+// dotenv is NOT installed; load .env.local manually:
+const env = readFileSync(new URL('./.env.local', import.meta.url), 'utf8');
+for (const l of env.split('\n')) {
+  const m = l.match(/^([A-Z0-9_]+)=(.*)$/);
+  if (m) process.env[m[1]] ??= m[2].replace(/^"|"$/g, '');
+}
+const c = new pg.Client({
   connectionString: process.env.SUPABASE_DB_URL,
   ssl: { rejectUnauthorized: false },
 });
@@ -108,6 +114,33 @@ psql "$SUPABASE_DB_URL" -c \
 
 Path B is the only way to verify the signup-form code path (toast text, mode switch, etc.). Use Path A for everything else — it's faster.
 
+## Role-gate testing — use the real browser session, not a synthetic cookie
+
+The API routes (`src/app/api/customer-purchases/[id]/route.ts`, etc.) call `requireMember(supabase, ["admin"])` against `createSupabaseServer()`, which reads cookies via Next.js' Supabase SSR adapter. **Do not** try to forge a Supabase auth cookie from `signInWithPassword`'s `access_token` and POST it via `node fetch` — the cookie envelope shape is internal to `@supabase/ssr` and Next.js middleware silently 200s with the `/login` HTML when it doesn't match (your test will then `FAIL` with a fake 200).
+
+The reliable pattern: keep the *same* browser session that's already signed in, and toggle the role in the DB. The existing cookie keeps validating; only the role gate changes:
+
+```js
+// 1) Demote in the DB:
+await c.query("update public.profiles set role='staff' where id=$1", [userId]);
+
+// 2) Drive the fetch from inside the page (cookies attach automatically):
+import { chromium } from 'playwright-core';
+const browser = await chromium.connectOverCDP('http://localhost:29229');
+const page = browser.contexts()[0].pages()[0];
+const result = await page.evaluate(async (id) => {
+  const r = await fetch(`/api/customer-purchases/${id}`, { method: 'DELETE' });
+  return { status: r.status, body: (await r.text()).slice(0, 400) };
+}, purchaseId);
+
+// 3) Re-promote and re-issue to sanity-check the path itself isn't broken:
+await c.query("update public.profiles set role='admin' where id=$1", [userId]);
+```
+
+Refreshing `/customer-purchases` after the demote also visibly hides admin-only UI (`Lịch sử hệ thống`, `Cài đặt`, the trash icon on each row) — useful for the recording. The header role label flips `Quản trị viên` → `Nhân viên`.
+
+**`computer.console` action gotcha:** the action complains "Chrome is not in the foreground" even when `wmctrl` reports Chrome as active and a `screenshot` succeeds. When that happens, fall back to Playwright/CDP `page.evaluate` as above — it doesn't depend on focus.
+
 ## Phase 2A importer (PR #5)
 
 The real export is the Vietnamese e-invoice "Báo cáo bán hàng chi tiết". The Phase 2A parser handles its specific quirks — when in doubt run the test fixture instead of crafting a synthetic file:
@@ -145,91 +178,51 @@ Uploading the fixture via the UI: the `/import` page has a real `<input type="fi
 Spec invariants the classifier MUST satisfy (covered by `parse.test.ts`):
 
 - `Vàng`, `Lắc tay`, `Bông tai vàng` → unclassified ("Cần xử lý").
-- `Dây chuyền vàng tây 10k`, `Vòng vàng ta 24k`, `Lắc bạc thái` → matched to the right category.
+- `Bông tây` (no `Vàng/Bạc/Vàng ta/Vàng tây/Bạc 925`) → unclassified.
+- `Lắc tay vàng tây 10K` → `Vàng tây` (matches `vang tay`).
+- `Vàng nhẫn 9999`, `Vàng 9999`, `Nhẫn vàng 18K` → `Vàng tây` (matches `vàng` in keyword list).
+- `Bạc 925`, `Vòng bạc` → `Bạc`.
 
-## Excel column aliases (parse.ts)
+When testing classification, the `/sales` table's `Phân loại` cell shows the classified category badge or `Cần xử lý` (yellow); cross-check `select category_id, category_label from public.sales_transactions where store_id=...` to confirm the DB matches the badge.
 
-For Phase 2A's e-invoice flow these are the canonical Vietnamese headers (case-insensitive, whitespace-collapsed). Use the canonical form; ASCII-stripped fallbacks are also accepted where shown.
+## Phase 2C customer purchases (PR #8 + PR #9)
 
-| Field | Aliases |
-|---|---|
-| invoice_template_code | ký hiệu mẫu hóa đơn / ky hieu mau hoa don |
-| invoice_series | ký hiệu hóa đơn / ky hieu hoa don |
-| invoice_no | số hóa đơn / so hoa don / **số hđ, so hd** *(PR #3)* / invoice |
-| invoice_date (→ sale_date) | ngày, tháng, năm lập hóa đơn / ngày lập hóa đơn / ngày |
-| customer_name | tên khách hàng / khách hàng |
-| customer_tax_code | mã số thuế / ma so thue |
-| customer_address | địa chỉ / dia chi |
-| product_code | mã hàng hóa / ma hang hoa |
-| product_name_raw | tên hàng hóa / ten hang hoa / tên hàng / sản phẩm / diễn giải |
-| unit | đvt / dvt / đơn vị tính |
-| quantity | số lượng / so luong / qty / sl |
-| unit_price | đơn giá / don gia / unit price |
-| sales_amount_before_tax | doanh số bán hàng chưa thuế vnđ |
-| vat_output_amount_from_invoice | thuế gtgt đầu ra vnđ |
-| total_amount | tổng cộng vnđ / thành tiền / tổng tiền / total |
-| currency | đơn vị tiền tệ |
-| currency_rate | tỷ giá |
-| payment_method | phương thức thanh toán (fallback: hình thức thanh toán) |
-| payment_status | trạng thái thanh toán |
-| invoice_status | trạng thái hóa đơn |
-| tax_authority_status | trạng thái gửi cqt |
-| tax_authority_code | mã cqt cấp |
-| source_stt / source_row_number | populated from STT cell + Excel row index |
+New route `/customer-purchases` (sidebar `Mua từ khách`). Records gold/silver/jewelry the shop buys from individual customers. These rows feed both the inventory snapshot (when `becomes_inventory=true`) and the average-purchase-price input (when `is_tax_purchase_input=true`) consumed by the future VAT engine update.
 
-`weight` is no longer a parser-side field — gold/silver weight comes from `unit` (`chỉ`, `lượng`, etc.) plus `quantity`. The DB column still exists but Phase 2A leaves it null.
+### Required Vietnamese UI copy (anchor your assertions on these strings)
 
-## Generating a sample sales Excel
+- Sidebar: `Mua từ khách`
+- Page title: `Mua từ khách`. Subtitle: `Ghi nhận giao dịch mua vàng/bạc/đá quý từ khách lẻ. Có thể đưa vào tồn kho và dùng làm đầu vào cho giá vốn bình quân (thuế GTGT trực tiếp).`
+- Filter bar: `Từ ngày`, `Đến ngày`, `Phân loại`, `Tên sản phẩm`, `Khách hàng` (free-text against `name | phone | tax_code | id_card`), `Tính giá vốn` (`Tất cả` / `Có tính` / `Không tính`). Apply: `Áp dụng`. Clear: `Xóa bộ lọc`.
+- Add button: `+ Thêm giao dịch mua` (top-right of the filter bar).
+- Create dialog title: `Thêm giao dịch mua từ khách`. Edit dialog title: `Sửa giao dịch mua`. Save buttons: `Lưu giao dịch` (create) / `Cập nhật` (edit). Cancel: `Hủy`.
+- Two checkbox toggles in the dialog: `Tính vào giá mua bình quân` (controls `is_tax_purchase_input`) and `Đưa vào tồn kho` (controls `becomes_inventory`). Both default checked.
+- Auto-calc helper text under `Thành tiền`: `Tự tính theo SL × Đơn giá`. Override link: `Khôi phục tự tính`.
+- Toasts: `Đã thêm giao dịch mua`, `Đã cập nhật giao dịch mua`, `Đã xóa giao dịch mua`. Failure: `Lưu thất bại`.
+- Table columns: `Ngày`, `Khách hàng`, `Sản phẩm`, `Phân loại`, `Tuổi`, `SL`, `Đơn giá`, `Thành tiền`, `Thuế` (`Có tính` / `Không`), `Tồn kho` (`Đã đưa vào` / `Không`), `Thao tác`.
+- Delete confirm dialog: `Xóa giao dịch mua?` body includes date, product name, total, then `Hành động này không thể hoàn tác.` Buttons: `Hủy` / `Xóa`.
+- Dashboard card: `Mua từ khách trong kỳ` — three tiles: `Tổng mua từ khách`, `Tính vào giá vốn bình quân`, `Cần kiểm tra` (with `Thiếu phân loại` and `Thiếu số tiền` sub-counts).
+- `Cần xử lý` page rows added: `X giao dịch mua thiếu phân loại` (deeplinks to `/customer-purchases?category=none`) and `X giao dịch mua thiếu số tiền`.
 
-The `xlsx` package is in the repo's `node_modules`, so generate from a script run inside the repo dir (or `cp` the script in first):
+### DB invariants future tests assert
 
-```js
-// Run with: cd /home/ubuntu/repos/vangbacngoctram && node ./gen-sample-xlsx.js
-const XLSX = require('xlsx');
-// Use 'Số HĐ' (post PR #3) and decimal weights to *prove* fixes #2 + #3 are in place.
-const headers = ['Ngày', 'Số HĐ', 'Tên sản phẩm', 'Số lượng', 'Trọng lượng',
-                 'Đơn giá', 'Thành tiền', 'Giá vốn', 'Khách hàng'];
-const rows = [
-  ['01/05/2026', 'HD-001', 'Nhẫn vàng 9999', 1, 1.5, 6500000, 9750000, 9000000, 'Khách lẻ A'],
-  ['03/05/2026', 'HD-002', 'Dây chuyền vàng 18k', 1, 2.0, 4200000, 8400000, 7600000, 'Khách lẻ B'],
-  ['05/05/2026', 'HD-003', 'Lắc bạc thái',     1, 5.0, 1200000, 6000000, 4800000, 'Khách lẻ C'],
-  ['07/05/2026', 'HD-004', 'Vòng vàng ta 24k', 1, 3.0, 6500000, 19500000, null,    'Khách lẻ D'],
-  ['09/05/2026', 'HD-005', 'Bông tai vàng tây 14k', 2, 0.8, 3800000, 6080000, 5300000, 'Khách lẻ E'],
-];
-const ws = XLSX.utils.aoa_to_sheet([headers, ...rows]);
-const wb = XLSX.utils.book_new();
-XLSX.utils.book_append_sheet(wb, ws, 'Sales');
-XLSX.writeFile(wb, '/tmp/sample-sales-v2.xlsx');
-```
+- `customer_purchases` table has a `customer_purchase_create` / `customer_purchase_update` / `customer_purchase_delete` audit log entry per write — all gated by `requireMember`. Delete is admin-only.
+- Bidirectional inventory link: `customer_purchases.inventory_item_id` ↔ `inventory_items.source_customer_purchase_id`. `removeInventoryLink` nulls **both** sides; it does **not** hard-delete the inventory row (it might already be partially sold).
+- Toggling `Đưa vào tồn kho` off then back on must produce a **new** `inventory_items` row — `ensureInventoryItemForPurchase` does NOT re-attach the previously-detached row. So the test should expect `inventory_items` count to grow by 1 each toggle-on.
+- `purity` is a free-text column; the schema validates it server-side against `["9999", "24K", "18K", "14K", "10K", "925", "other"]`.
+- Default page size is 50 rows.
 
-**Use decimal weights (`1.5`, `0.8`) to prove the parse fix is still in place.** After PR #3, the preview's `Trọng lượng` column should display `1,5` / `0,8` (Vietnamese decimal comma via vi-VN locale). If you see `15` / `8` instead, fix #2 has regressed.
+### Decimal-form hydration pitfall (PR #9 root cause)
 
-## Excel parsing foot-guns (history)
+When you build any new edit dialog that pre-populates a numeric input from a DB row, **do not** write `String(row.quantity)` — for `1.5` that produces `"1.5"`, which `parseVietnameseNumber` (`src/lib/utils.ts`) interprets as `"1.5"` thousands-separator and parses as `15`. Saving without changing the field would silently inflate the value 10×. Use `formatNumberForInput(value, maxFractionDigits)` (also in `src/lib/utils.ts`) which renders Vietnamese-locale strings (`"1,5"`, `"4200000"`) that round-trip losslessly through the parser. The regression test in `src/lib/__tests__/utils.test.ts` pins this behaviour — extend it whenever you add a new numeric form input.
 
-- **PR #3** (Phase 1.5): added the `Số HĐ` / `số hđ` alias to `invoice_no`. Before this, the `gen-sample-xlsx.js` example above triggered `Lỗi: Số hóa đơn` for every row.
-- **PR #3** (Phase 1.5): two-part fix for decimal `Trọng lượng`:
-  1. `XLSX.read(buf, { type: 'buffer', raw: true })` — keeps numeric cells as JS numbers.
-  2. The `toNumber()` helper short-circuits when `typeof v === 'number'`, avoiding the lossy `String(v).replace(',', '.')` round-trip that was turning 1.5 into 15.
-- **PR #5** (Phase 2A): kept (1) and (2), added the dynamic-header / two-identifier / Vietnamese-date overhaul above.
+### End-to-end test order (use after a fresh DB reset + Path-A signup)
 
-## Reset script (full)
+Follow this exact sequence to keep DB state predictable across tests:
 
-Use before any signup test to ensure the new user becomes admin and the seed runs from scratch:
-
-```
-psql "$SUPABASE_DB_URL" <<'SQL'
-delete from public.audit_logs;
-delete from public.tax_reports;
-delete from public.tax_periods;
-delete from public.sales_transactions;
-delete from public.import_files;
-delete from public.classification_rules;
-delete from public.product_categories;
-delete from public.tax_settings;
-delete from public.profiles;
-delete from public.stores;
-delete from auth.users;
-SQL
-```
-
-If `psql` isn't available, paste the same SQL into a Node-pg probe (see "SQL access" above).
+1. **Create**: Vàng tây 18K, customer Nguyễn Văn A, `1,5 chỉ × 4.200.000` → expect `Thành tiền=6300000` auto-calc, `customer_purchases` row, linked `inventory_items` row, `customer_purchase_create` audit, dashboard tile `6.300.000 ₫ / 1 giao dịch` in both `Tổng mua từ khách` and `Tính vào giá vốn bình quân`.
+2. **Edit toggle off**: open the row, uncheck `Đưa vào tồn kho`, save with no other change → `customer_purchases.inventory_item_id IS NULL`, `inventory_items.source_customer_purchase_id IS NULL`, **`quantity` STILL `1.5`** (regression check for PR #9).
+3. **Edit toggle on**: re-open, re-check, save → new `inventory_items` row, `inventory_items` count is now 2, `customer_purchases.quantity` STILL `1.5`.
+4. **Add second row** + **filter**: Bạc miếng test, `is_tax_purchase_input=false`. Verify `?tax_input=1` shows only Vàng tây, `?tax_input=0` shows only Bạc; dashboard `Tính vào giá vốn` excludes Bạc.
+5. **Admin DELETE**: trash icon → confirm dialog → row removed → `customer_purchase_delete` audit row.
+6. **Role gate (shell)**: demote to staff, refresh — trash icon hidden, role label `Nhân viên`. Drive `fetch('/api/customer-purchases/<id>', {method:'DELETE'})` via Playwright/CDP `page.evaluate` (see "Role-gate testing" above) → expect `403` + `{"error":"Bạn không có quyền thực hiện thao tác này"}`. Re-promote, re-issue → `200 {"ok":true}`.
