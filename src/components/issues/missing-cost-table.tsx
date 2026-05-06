@@ -14,7 +14,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Loader2, Pencil, X } from "lucide-react";
+import { Link2, Loader2, Pencil, X } from "lucide-react";
 import { toast } from "sonner";
 import {
   formatNumber,
@@ -23,6 +23,7 @@ import {
   parseVietnameseNumber,
 } from "@/lib/utils";
 import type { SaleIssueRow } from "@/lib/issues/queries";
+import { InventoryPickerDialog } from "@/components/inventory/inventory-picker-dialog";
 
 type Props = {
   rows: SaleIssueRow[];
@@ -45,6 +46,7 @@ export function MissingCostTable({
   const [ignoreReason, setIgnoreReason] = useState("");
   const [editingId, setEditingId] = useState<string | null>(null);
   const [singleCost, setSingleCost] = useState("");
+  const [pickerSale, setPickerSale] = useState<SaleIssueRow | null>(null);
   const [pending, startTransition] = useTransition();
 
   const allChecked = rows.length > 0 && rows.every((r) => selected.has(r.id));
@@ -357,6 +359,14 @@ export function MissingCostTable({
                         <Pencil className="mr-1 h-3.5 w-3.5" />
                         Nhập giá vốn
                       </Button>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => setPickerSale(r)}
+                      >
+                        <Link2 className="mr-1 h-3.5 w-3.5" />
+                        Gắn tồn kho
+                      </Button>
                     </div>
                   )}
                 </TableCell>
@@ -391,6 +401,22 @@ export function MissingCostTable({
           </div>
         </div>
       )}
+
+      <InventoryPickerDialog
+        open={pickerSale !== null}
+        onOpenChange={(o) => !o && setPickerSale(null)}
+        saleId={pickerSale?.id ?? ""}
+        saleProductName={pickerSale?.product_name_raw ?? null}
+        saleCategoryId={pickerSale?.product_category_id ?? null}
+        saleCategoryName={
+          pickerSale && pickerSale.category
+            ? Array.isArray(pickerSale.category)
+              ? pickerSale.category[0]?.name ?? null
+              : pickerSale.category.name ?? null
+            : null
+        }
+        onLinked={() => router.refresh()}
+      />
     </div>
   );
 }

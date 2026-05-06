@@ -8,6 +8,9 @@ import {
   Copy,
   ArrowRight,
   ShieldCheck,
+  Package,
+  Boxes,
+  Link2,
 } from "lucide-react";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
@@ -19,6 +22,7 @@ import {
 } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { loadIssueCounts } from "@/lib/issues/data";
+import { loadInventoryIssueCounts } from "@/lib/inventory/issues";
 import { formatNumber } from "@/lib/utils";
 
 export const dynamic = "force-dynamic";
@@ -39,7 +43,10 @@ export default async function IssuesPage() {
   } = await supabase.auth.getUser();
   if (!user) redirect("/login");
 
-  const counts = await loadIssueCounts(supabase);
+  const [counts, inventoryCounts] = await Promise.all([
+    loadIssueCounts(supabase),
+    loadInventoryIssueCounts(supabase),
+  ]);
 
   const groups: Group[] = [
     {
@@ -96,9 +103,45 @@ export default async function IssuesPage() {
       count: counts.duplicates,
       tone: "warning",
     },
+    {
+      href: "/inventory?missing_cost=1",
+      label: "Tồn thiếu giá mua",
+      description:
+        "Mặt hàng tồn dùng làm giá vốn nhưng chưa có purchase_cost_amount.",
+      icon: Package,
+      count: inventoryCounts.missingCost,
+      tone: "warning",
+    },
+    {
+      href: "/inventory?category=none",
+      label: "Tồn chưa phân loại",
+      description:
+        "Mặt hàng tồn chưa được gán nhóm Vàng ta / Vàng tây / Bạc.",
+      icon: Boxes,
+      count: inventoryCounts.missingCategory,
+      tone: "warning",
+    },
+    {
+      href: "/inventory?status=adjusted",
+      label: "Tồn âm hoặc sai dữ liệu",
+      description:
+        "Mặt hàng có số lượng hoặc trọng lượng âm. Cần kiểm tra điều chỉnh.",
+      icon: AlertTriangle,
+      count: inventoryCounts.negativeStock,
+      tone: "destructive",
+    },
+    {
+      href: "/issues/missing-cost",
+      label: "Bán gắn tồn đã ngưng",
+      description:
+        "Giao dịch bán đang gắn với mặt hàng tồn đã lưu trữ hoặc đã bán hết.",
+      icon: Link2,
+      count: inventoryCounts.linkedToArchived,
+      tone: "warning",
+    },
   ];
 
-  const allClean = counts.total === 0;
+  const allClean = counts.total === 0 && inventoryCounts.total === 0;
 
   return (
     <div className="space-y-6">
@@ -114,7 +157,7 @@ export default async function IssuesPage() {
         <Badge variant={allClean ? "success" : "warning"} className="text-sm">
           {allClean
             ? "Không còn vấn đề"
-            : `${formatNumber(counts.total, 0)} vấn đề`}
+            : `${formatNumber(counts.total + inventoryCounts.total, 0)} vấn đề`}
         </Badge>
       </div>
 

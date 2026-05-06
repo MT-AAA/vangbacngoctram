@@ -310,54 +310,111 @@ export type Database = {
       }
       inventory_items: {
         Row: {
+          archived_at: string | null
+          archived_by: string | null
+          archived_reason: string | null
+          attachment_url: string | null
           created_at: string
           created_by: string | null
+          current_quantity: number | null
+          current_weight: number | null
           id: string
+          imported_at: string | null
+          initial_quantity: number | null
+          initial_weight: number | null
+          is_tax_cost_source: boolean
           name: string
           notes: string | null
           product_category_id: string | null
+          product_type: string | null
+          purchase_cost_amount: number | null
+          purchase_unit_price: number | null
+          purity: string | null
           quantity_on_hand: number
+          selling_price: number | null
           sku: string | null
           source_customer_purchase_id: string | null
+          source_id: string | null
+          source_reference: string | null
+          source_type: Database["public"]["Enums"]["inventory_source_type"]
           status: Database["public"]["Enums"]["inventory_status"]
           store_id: string
           total_cost: number
+          unit: string | null
           unit_cost: number
           updated_at: string
           weight: number | null
           weight_unit: string
         }
         Insert: {
+          archived_at?: string | null
+          archived_by?: string | null
+          archived_reason?: string | null
+          attachment_url?: string | null
           created_at?: string
           created_by?: string | null
+          current_quantity?: number | null
+          current_weight?: number | null
           id?: string
+          imported_at?: string | null
+          initial_quantity?: number | null
+          initial_weight?: number | null
+          is_tax_cost_source?: boolean
           name: string
           notes?: string | null
           product_category_id?: string | null
+          product_type?: string | null
+          purchase_cost_amount?: number | null
+          purchase_unit_price?: number | null
+          purity?: string | null
           quantity_on_hand?: number
+          selling_price?: number | null
           sku?: string | null
           source_customer_purchase_id?: string | null
+          source_id?: string | null
+          source_reference?: string | null
+          source_type?: Database["public"]["Enums"]["inventory_source_type"]
           status?: Database["public"]["Enums"]["inventory_status"]
           store_id: string
           total_cost?: number
+          unit?: string | null
           unit_cost?: number
           updated_at?: string
           weight?: number | null
           weight_unit?: string
         }
         Update: {
+          archived_at?: string | null
+          archived_by?: string | null
+          archived_reason?: string | null
+          attachment_url?: string | null
           created_at?: string
           created_by?: string | null
+          current_quantity?: number | null
+          current_weight?: number | null
           id?: string
+          imported_at?: string | null
+          initial_quantity?: number | null
+          initial_weight?: number | null
+          is_tax_cost_source?: boolean
           name?: string
           notes?: string | null
           product_category_id?: string | null
+          product_type?: string | null
+          purchase_cost_amount?: number | null
+          purchase_unit_price?: number | null
+          purity?: string | null
           quantity_on_hand?: number
+          selling_price?: number | null
           sku?: string | null
           source_customer_purchase_id?: string | null
+          source_id?: string | null
+          source_reference?: string | null
+          source_type?: Database["public"]["Enums"]["inventory_source_type"]
           status?: Database["public"]["Enums"]["inventory_status"]
           store_id?: string
           total_cost?: number
+          unit?: string | null
           unit_cost?: number
           updated_at?: string
           weight?: number | null
@@ -894,11 +951,30 @@ export type Database = {
         Args: never
         Returns: Database["public"]["Enums"]["user_role"]
       }
+      next_inventory_sku: {
+        Args: { p_store_id: string; p_category_code: string }
+        Returns: string
+      }
       seed_store_defaults: { Args: { p_store_id: string }; Returns: undefined }
     }
     Enums: {
       import_status: "uploaded" | "processing" | "completed" | "failed"
-      inventory_status: "in_stock" | "sold" | "reserved" | "written_off"
+      inventory_source_type:
+        | "manual"
+        | "customer_purchase"
+        | "supplier"
+        | "adjustment"
+        | "excel_import"
+      inventory_status:
+        | "in_stock"
+        | "sold"
+        | "reserved"
+        | "written_off"
+        | "partially_sold"
+        | "melted"
+        | "returned"
+        | "adjusted"
+        | "archived"
       purchase_cost_source:
         | "excel"
         | "manual"
@@ -1040,7 +1116,24 @@ export const Constants = {
   public: {
     Enums: {
       import_status: ["uploaded", "processing", "completed", "failed"],
-      inventory_status: ["in_stock", "sold", "reserved", "written_off"],
+      inventory_source_type: [
+        "manual",
+        "customer_purchase",
+        "supplier",
+        "adjustment",
+        "excel_import",
+      ],
+      inventory_status: [
+        "in_stock",
+        "sold",
+        "reserved",
+        "written_off",
+        "partially_sold",
+        "melted",
+        "returned",
+        "adjusted",
+        "archived",
+      ],
       purchase_cost_source: [
         "excel",
         "manual",

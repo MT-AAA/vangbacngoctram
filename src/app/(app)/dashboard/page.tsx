@@ -291,11 +291,20 @@ export default async function DashboardPage({
           </div>
 
           <div className="card-cream rounded-2xl p-4 lg:p-5">
-            <div className="flex items-center gap-2 mb-3">
-              <Boxes className="h-4 w-4 text-emerald-800" />
-              <h2 className="text-base font-semibold text-forest">
-                Tồn kho hiện tại
-              </h2>
+            <div className="flex items-center justify-between mb-3">
+              <div className="flex items-center gap-2">
+                <Boxes className="h-4 w-4 text-emerald-800" />
+                <h2 className="text-base font-semibold text-forest">
+                  Tồn kho hiện tại
+                </h2>
+              </div>
+              <Link
+                href="/inventory"
+                className="text-xs text-emerald-900/65 hover:text-emerald-900 inline-flex items-center gap-1"
+              >
+                Quản lý tồn kho
+                <span aria-hidden>→</span>
+              </Link>
             </div>
             {data.inventorySnapshot.length === 0 ? (
               <p className="text-sm text-emerald-900/55">
@@ -320,6 +329,27 @@ export default async function DashboardPage({
                     </div>
                   </div>
                 ))}
+              </div>
+            )}
+            {(data.inventoryAlerts.missingCost > 0 ||
+              data.inventoryAlerts.lowStock > 0) && (
+              <div className="mt-3 flex flex-wrap gap-2 text-[11px]">
+                {data.inventoryAlerts.missingCost > 0 && (
+                  <Link
+                    href="/inventory?missing_cost=1"
+                    className="rounded-full bg-amber-100 px-2 py-0.5 text-amber-900 ring-1 ring-amber-300/60 hover:bg-amber-200"
+                  >
+                    {data.inventoryAlerts.missingCost} hàng thiếu giá mua
+                  </Link>
+                )}
+                {data.inventoryAlerts.lowStock > 0 && (
+                  <Link
+                    href="/inventory?low_stock=1"
+                    className="rounded-full bg-rose-100 px-2 py-0.5 text-rose-900 ring-1 ring-rose-300/60 hover:bg-rose-200"
+                  >
+                    {data.inventoryAlerts.lowStock} hàng tồn thấp
+                  </Link>
+                )}
               </div>
             )}
           </div>
