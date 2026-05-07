@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { AppSidebar } from "@/components/app-shell/app-sidebar";
+import { MobileNav } from "@/components/app-shell/mobile-nav";
 import { TopBar } from "@/components/app-shell/top-bar";
 
 export default async function AppLayout({
@@ -68,8 +69,11 @@ export default async function AppLayout({
     <div className="flex min-h-screen w-full">
       <AppSidebar role={profile.role} />
       <div className="flex flex-1 flex-col min-w-0">
+        <MobileNav profile={profile} />
         <TopBar profile={profile} />
-        <main className="flex-1 overflow-x-hidden px-6 lg:px-8 pb-10">{children}</main>
+        <main className="flex-1 overflow-x-hidden px-3 sm:px-4 lg:px-8 pb-12 pt-4 lg:pt-0">
+          {children}
+        </main>
       </div>
     </div>
   );

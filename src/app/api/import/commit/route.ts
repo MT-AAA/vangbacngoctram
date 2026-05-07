@@ -21,7 +21,7 @@ export async function POST(request: Request) {
   const {
     data: { user },
   } = await supabase.auth.getUser();
-  if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  if (!user) return NextResponse.json({ error: "Bạn cần đăng nhập để tiếp tục." }, { status: 401 });
 
   const { data: profile } = await supabase
     .from("profiles")
