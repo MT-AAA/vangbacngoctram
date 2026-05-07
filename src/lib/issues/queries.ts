@@ -76,6 +76,72 @@ export async function listMissingCost(
   return { rows: (data ?? []) as SaleIssueRow[], total: count ?? 0 };
 }
 
+/**
+ * Given a sales_transaction id, find which 0-based page it sits on inside the
+ * `listMissingCost(...)` result (using the same `sale_date desc, invoice_no asc`
+ * ordering). Returns null if the row is not in the missing-cost list — caller
+ * is expected to fall back to page 0.
+ */
+export async function findMissingCostPage(
+  client: DBClient,
+  opts: {
+    transactionId: string;
+    pageSize?: number;
+    includeIgnored?: boolean;
+  }
+): Promise<number | null> {
+  const pageSize = opts.pageSize ?? DEFAULT_PAGE_SIZE;
+
+  const { data: target } = await client
+    .from("sales_transactions")
+    .select("id, sale_date, invoice_no, tax_calculation_status, is_intentionally_ignored")
+    .eq("id", opts.transactionId)
+    .maybeSingle();
+
+  if (
+    !target ||
+    target.tax_calculation_status !== "missing_purchase_cost" ||
+    (!opts.includeIgnored && target.is_intentionally_ignored)
+  ) {
+    return null;
+  }
+
+  // Count rows that come strictly before the target in the (sale_date desc,
+  // invoice_no asc) ordering.
+  // Strictly newer dates: sale_date > target.sale_date
+  // Same date, smaller invoice_no: sale_date = target AND invoice_no < target.invoice_no
+  let newerQuery = client
+    .from("sales_transactions")
+    .select("id", { count: "exact", head: true })
+    .eq("tax_calculation_status", "missing_purchase_cost")
+    .gt("sale_date", target.sale_date);
+  if (!opts.includeIgnored) {
+    newerQuery = newerQuery.eq("is_intentionally_ignored", false);
+  }
+  const { count: newerCount } = await newerQuery;
+
+  let sameDayQuery = client
+    .from("sales_transactions")
+    .select("id", { count: "exact", head: true })
+    .eq("tax_calculation_status", "missing_purchase_cost")
+    .eq("sale_date", target.sale_date);
+  if (!opts.includeIgnored) {
+    sameDayQuery = sameDayQuery.eq("is_intentionally_ignored", false);
+  }
+  if (target.invoice_no !== null && target.invoice_no !== undefined) {
+    sameDayQuery = sameDayQuery.lt("invoice_no", target.invoice_no);
+  } else {
+    // Target has null invoice_no. With ascending order, nulls land at the end
+    // for ascending in PostgREST, so nothing same-day comes before it via this
+    // path. Skip the sameDayQuery contribution by returning 0.
+    return Math.floor((newerCount ?? 0) / pageSize);
+  }
+  const { count: sameDayBeforeCount } = await sameDayQuery;
+
+  const index = (newerCount ?? 0) + (sameDayBeforeCount ?? 0);
+  return Math.floor(index / pageSize);
+}
+
 export async function listUnclassified(
   client: DBClient,
   opts: { page?: number; pageSize?: number } = {}

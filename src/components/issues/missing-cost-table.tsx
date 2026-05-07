@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState, useTransition } from "react";
+import { useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import {
   Table,
@@ -31,6 +31,7 @@ type Props = {
   page: number;
   pageSize: number;
   includeIgnored: boolean;
+  highlightId?: string;
 };
 
 export function MissingCostTable({
@@ -39,6 +40,7 @@ export function MissingCostTable({
   page,
   pageSize,
   includeIgnored,
+  highlightId,
 }: Props) {
   const router = useRouter();
   const [selected, setSelected] = useState<Set<string>>(() => new Set());
@@ -48,6 +50,21 @@ export function MissingCostTable({
   const [singleCost, setSingleCost] = useState("");
   const [pickerSale, setPickerSale] = useState<SaleIssueRow | null>(null);
   const [pending, startTransition] = useTransition();
+  const highlightRef = useRef<HTMLTableRowElement | null>(null);
+  const [highlightActive, setHighlightActive] = useState(false);
+
+  useEffect(() => {
+    if (!highlightId) return;
+    const onPage = rows.some((r) => r.id === highlightId);
+    if (!onPage) return;
+    setHighlightActive(true);
+    const node = highlightRef.current;
+    if (node) {
+      node.scrollIntoView({ behavior: "smooth", block: "center" });
+    }
+    const t = window.setTimeout(() => setHighlightActive(false), 4000);
+    return () => window.clearTimeout(t);
+  }, [highlightId, rows]);
 
   const allChecked = rows.length > 0 && rows.every((r) => selected.has(r.id));
 
@@ -252,10 +269,20 @@ export function MissingCostTable({
           {rows.map((r) => {
             const isEditing = editingId === r.id;
             const ignored = r.is_intentionally_ignored;
+            const isHighlighted = highlightId === r.id;
+            const rowClass = [
+              ignored ? "opacity-60" : "",
+              isHighlighted && highlightActive
+                ? "bg-amber-50 ring-2 ring-amber-400"
+                : "",
+            ]
+              .filter(Boolean)
+              .join(" ");
             return (
               <TableRow
                 key={r.id}
-                className={ignored ? "opacity-60" : undefined}
+                ref={isHighlighted ? highlightRef : undefined}
+                className={rowClass || undefined}
               >
                 <TableCell>
                   <input
