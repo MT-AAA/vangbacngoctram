@@ -4,7 +4,14 @@ import {
   type DashboardCustomerPurchaseSummary,
 } from "@/lib/customer-purchases/queries";
 
-export type PeriodKey = "day" | "month" | "quarter" | "year";
+export type PeriodKey = "day" | "month" | "quarter" | "year" | "custom";
+
+export type CustomRange = {
+  /** ISO yyyy-mm-dd. */
+  from: string;
+  /** ISO yyyy-mm-dd. */
+  to: string;
+};
 
 export type DateRange = {
   start: Date;
@@ -23,9 +30,72 @@ function toISO(d: Date): string {
   return `${d.getUTCFullYear()}-${pad(d.getUTCMonth() + 1)}-${pad(d.getUTCDate())}`;
 }
 
-export function buildRange(period: PeriodKey, ref: Date = new Date()): DateRange {
+function parseISODateUTC(s: string): Date | null {
+  // Accept yyyy-mm-dd only.
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(s)) return null;
+  const d = new Date(`${s}T00:00:00.000Z`);
+  return Number.isNaN(d.getTime()) ? null : d;
+}
+
+export function buildRange(
+  period: PeriodKey,
+  ref: Date = new Date(),
+  custom?: CustomRange
+): DateRange {
   const y = ref.getUTCFullYear();
   const m = ref.getUTCMonth();
+
+  if (period === "custom" && custom) {
+    const start = parseISODateUTC(custom.from);
+    const end = parseISODateUTC(custom.to);
+    if (start && end && start.getTime() <= end.getTime()) {
+      const dayMs = 24 * 60 * 60 * 1000;
+      const days = Math.round((end.getTime() - start.getTime()) / dayMs) + 1;
+      const buckets: DateRange["buckets"] = [];
+      // Use day buckets when the range is short, month buckets otherwise.
+      if (days <= 62) {
+        for (let i = 0; i < days; i++) {
+          const day = new Date(start.getTime() + i * dayMs);
+          buckets.push({
+            start: day,
+            end: day,
+            label: `${pad(day.getUTCDate())}/${pad(day.getUTCMonth() + 1)}`,
+          });
+        }
+        return {
+          start,
+          end,
+          label: `${toISOVN(start)} - ${toISOVN(end)}`,
+          bucket: "day",
+          buckets,
+        };
+      }
+      // Month buckets.
+      const cursor = new Date(
+        Date.UTC(start.getUTCFullYear(), start.getUTCMonth(), 1)
+      );
+      while (cursor.getTime() <= end.getTime()) {
+        const bs = new Date(cursor);
+        const be = new Date(
+          Date.UTC(cursor.getUTCFullYear(), cursor.getUTCMonth() + 1, 0)
+        );
+        buckets.push({
+          start: bs.getTime() < start.getTime() ? start : bs,
+          end: be.getTime() > end.getTime() ? end : be,
+          label: `${pad(bs.getUTCMonth() + 1)}/${bs.getUTCFullYear()}`,
+        });
+        cursor.setUTCMonth(cursor.getUTCMonth() + 1);
+      }
+      return {
+        start,
+        end,
+        label: `${toISOVN(start)} - ${toISOVN(end)}`,
+        bucket: "month",
+        buckets,
+      };
+    }
+    // Fall through to default month range when custom is invalid.
+  }
 
   if (period === "day") {
     const start = new Date(Date.UTC(y, m, 1));
@@ -177,9 +247,12 @@ export type DashboardSummary = {
   customerPurchases: DashboardCustomerPurchaseSummary;
 };
 
-export async function loadDashboard(period: PeriodKey): Promise<DashboardSummary> {
+export async function loadDashboard(
+  period: PeriodKey,
+  custom?: CustomRange
+): Promise<DashboardSummary> {
   const supabase = createClient();
-  const range = buildRange(period);
+  const range = buildRange(period, new Date(), custom);
 
   const fromISO = toISO(range.start);
   const toISOEnd = toISO(range.end);

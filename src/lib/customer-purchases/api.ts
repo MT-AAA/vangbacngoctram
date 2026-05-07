@@ -36,7 +36,7 @@ export async function requireMember(
   if (!user) {
     return {
       ok: false,
-      response: NextResponse.json({ error: "Unauthorized" }, { status: 401 }),
+      response: NextResponse.json({ error: "Bạn cần đăng nhập để tiếp tục." }, { status: 401 }),
     };
   }
 

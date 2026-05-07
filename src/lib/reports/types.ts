@@ -130,8 +130,8 @@ export const REPORT_CATALOGUE: ReadonlyArray<ReportMeta> = [
     description:
       "So sánh tổng dòng / tổng tiền của file Excel nhập so với dữ liệu thực tế đã ghi nhận.",
     bullets: [
-      "Expected vs Imported",
-      "Delta theo từng file",
+      "Số dòng và tổng tiền dự kiến so với thực tế đã ghi nhận",
+      "Chênh lệch theo từng file",
     ],
     hasRangeFilter: true,
     hasCategoryFilter: false,

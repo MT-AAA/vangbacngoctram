@@ -13,16 +13,31 @@ import { formatVND, formatVNDate, formatNumber } from "@/lib/utils";
 export default async function DashboardPage({
   searchParams,
 }: {
-  searchParams: { period?: string };
+  searchParams: { period?: string; from?: string; to?: string };
 }) {
-  const periodKey: PeriodKey =
-    searchParams.period === "day" ||
-    searchParams.period === "quarter" ||
-    searchParams.period === "year"
-      ? (searchParams.period as PeriodKey)
-      : "month";
+  const isISODate = (s: string | undefined): s is string =>
+    typeof s === "string" && /^\d{4}-\d{2}-\d{2}$/.test(s);
 
-  const data = await loadDashboard(periodKey);
+  const wantsCustom =
+    searchParams.period === "custom" &&
+    isISODate(searchParams.from) &&
+    isISODate(searchParams.to) &&
+    searchParams.from! <= searchParams.to!;
+
+  const periodKey: PeriodKey = wantsCustom
+    ? "custom"
+    : searchParams.period === "day" ||
+      searchParams.period === "quarter" ||
+      searchParams.period === "year"
+    ? (searchParams.period as PeriodKey)
+    : "month";
+
+  const data = await loadDashboard(
+    periodKey,
+    wantsCustom
+      ? { from: searchParams.from!, to: searchParams.to! }
+      : undefined
+  );
   const { totals, changeVsPrev } = data;
 
   return (
@@ -38,7 +53,12 @@ export default async function DashboardPage({
             vàng, bạc, đá quý.
           </p>
         </div>
-        <PeriodFilter active={periodKey} rangeLabel={data.range.label} />
+        <PeriodFilter
+          active={periodKey}
+          rangeLabel={data.range.label}
+          customFrom={wantsCustom ? searchParams.from : undefined}
+          customTo={wantsCustom ? searchParams.to : undefined}
+        />
       </div>
 
       {totals.estimatedCount > 0 && (

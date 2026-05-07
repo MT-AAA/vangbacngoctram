@@ -2,52 +2,16 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import {
-  LayoutDashboard,
-  FileSpreadsheet,
-  Receipt,
-  Tag,
-  ShoppingBag,
-  Boxes,
-  Calculator,
-  BarChart3,
-  History,
-  Settings,
-  AlertTriangle,
-} from "lucide-react";
 import { cn } from "@/lib/utils";
-import type { Database } from "@/lib/supabase/database.types";
 import { BrandLogo } from "./brand-logo";
-
-type Role = Database["public"]["Enums"]["user_role"];
-
-type NavItem = {
-  href: string;
-  label: string;
-  icon: typeof LayoutDashboard;
-  roles?: Role[];
-};
-
-const NAV: NavItem[] = [
-  { href: "/dashboard", label: "Tổng quan", icon: LayoutDashboard },
-  { href: "/import", label: "Nhập Excel", icon: FileSpreadsheet },
-  { href: "/sales", label: "Bán hàng", icon: Receipt },
-  { href: "/issues", label: "Cần xử lý", icon: AlertTriangle },
-  { href: "/customer-purchases", label: "Mua từ khách", icon: ShoppingBag },
-  { href: "/inventory", label: "Tồn kho", icon: Boxes },
-  { href: "/tax-reports", label: "Báo cáo thuế", icon: Calculator },
-  { href: "/reports", label: "Báo cáo", icon: BarChart3 },
-  { href: "/categories", label: "Phân loại sản phẩm", icon: Tag },
-  { href: "/audit-logs", label: "Lịch sử hệ thống", icon: History, roles: ["admin"] },
-  { href: "/settings", label: "Cài đặt", icon: Settings, roles: ["admin"] },
-];
+import { getNavItemsForRole, roleLabel, type Role } from "./nav-items";
 
 export function AppSidebar({ role }: { role: Role }) {
   const pathname = usePathname();
-  const items = NAV.filter((i) => !i.roles || i.roles.includes(role));
+  const items = getNavItemsForRole(role);
 
   return (
-    <aside className="hidden w-64 shrink-0 md:flex md:flex-col text-amber-50 relative bg-forest-gradient">
+    <aside className="hidden w-64 shrink-0 lg:flex lg:flex-col text-amber-50 relative bg-forest-gradient">
       {/* Right gold seam */}
       <div
         aria-hidden
@@ -110,7 +74,7 @@ export function AppSidebar({ role }: { role: Role }) {
           }}
         />
         <div className="relative z-10 h-full flex items-end p-3 text-[10px] uppercase tracking-[0.18em] text-amber-200/60">
-          <span>{role === "admin" ? "Quản trị viên" : role === "staff" ? "Nhân viên" : "Người xem"}</span>
+          <span>{roleLabel(role)}</span>
         </div>
       </div>
     </aside>

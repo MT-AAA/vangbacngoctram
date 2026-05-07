@@ -1,31 +1,26 @@
 import { Bell, Search, LogOut } from "lucide-react";
+import { roleLabel, type Role } from "./nav-items";
 
 type ProfileWithStore = {
   id: string;
   store_id: string | null;
-  role: string;
+  role: Role;
   full_name: string | null;
   email: string;
   store: { id: string; name: string } | { id: string; name: string }[] | null;
 };
 
 /**
- * Slim top bar shown above page content. Page title and period filter live
- * inside each page so they can take part in the page title hierarchy.
+ * Slim top bar shown above page content on desktop. Hidden on mobile/tablet
+ * where the {@link MobileNav} component renders its own header instead.
  */
 export function TopBar({ profile }: { profile: ProfileWithStore }) {
   const initial = (profile.full_name?.[0] ?? profile.email?.[0] ?? "?").toUpperCase();
-  const roleLabel =
-    profile.role === "admin"
-      ? "Quản trị viên"
-      : profile.role === "staff"
-      ? "Nhân viên"
-      : "Người xem";
 
   return (
-    <header className="flex h-16 items-center justify-end gap-3 px-6 lg:px-8">
+    <header className="hidden lg:flex h-16 items-center justify-end gap-3 px-6 lg:px-8">
       {/* Search */}
-      <div className="relative hidden lg:block">
+      <div className="relative hidden xl:block">
         <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-emerald-900/60" />
         <input
           type="search"
@@ -50,7 +45,9 @@ export function TopBar({ profile }: { profile: ProfileWithStore }) {
           <div className="text-sm font-semibold text-forest">
             {profile.full_name ?? profile.email}
           </div>
-          <div className="text-[11px] text-emerald-900/60">{roleLabel}</div>
+          <div className="text-[11px] text-emerald-900/60">
+            {roleLabel(profile.role)}
+          </div>
         </div>
         <form action="/auth/sign-out" method="post">
           <button
