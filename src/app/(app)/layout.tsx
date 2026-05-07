@@ -20,7 +20,9 @@ export default async function AppLayout({
 
   const { data: profile } = await supabase
     .from("profiles")
-    .select("id, store_id, role, full_name, email, store:stores(id, name)")
+    .select(
+      "id, store_id, role, full_name, email, removed_at, store:stores(id, name)"
+    )
     .eq("id", user.id)
     .maybeSingle();
 
@@ -34,6 +36,30 @@ export default async function AppLayout({
           <p className="text-sm text-emerald-900/70">
             Vui lòng liên hệ quản trị viên để được gán cửa hàng.
           </p>
+        </div>
+      </div>
+    );
+  }
+
+  if (profile.removed_at) {
+    return (
+      <div className="min-h-screen flex items-center justify-center p-6">
+        <div className="card-cream rounded-2xl p-8 max-w-md text-center space-y-3">
+          <h1 className="text-xl font-semibold text-forest">
+            Tài khoản đã được gỡ khỏi cửa hàng
+          </h1>
+          <p className="text-sm text-emerald-900/75">
+            Tài khoản của bạn đã được gỡ khỏi cửa hàng. Vui lòng liên hệ quản
+            trị viên.
+          </p>
+          <form action="/auth/sign-out" method="post">
+            <button
+              type="submit"
+              className="text-sm underline text-emerald-900/70 hover:text-emerald-900"
+            >
+              Đăng xuất
+            </button>
+          </form>
         </div>
       </div>
     );

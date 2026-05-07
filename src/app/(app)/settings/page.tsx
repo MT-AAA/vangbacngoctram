@@ -45,7 +45,9 @@ export default async function SettingsPage() {
         .maybeSingle(),
       supabase
         .from("profiles")
-        .select("id, full_name, email, role, is_active, created_at")
+        .select(
+          "id, full_name, email, role, is_active, created_at, removed_at"
+        )
         .eq("store_id", profile.store_id!)
         .order("created_at"),
     ]);
@@ -57,6 +59,7 @@ export default async function SettingsPage() {
     role: m.role,
     is_active: m.is_active,
     created_at: m.created_at,
+    removed_at: m.removed_at,
   }));
 
   return (

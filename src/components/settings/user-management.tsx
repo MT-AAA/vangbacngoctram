@@ -1,9 +1,9 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { Loader2, Lock, ShieldCheck, UserCog } from "lucide-react";
+import { Loader2, Lock, ShieldCheck, UserCog, UserMinus } from "lucide-react";
 import {
   Select,
   SelectContent,
@@ -27,6 +27,8 @@ import type { Database } from "@/lib/supabase/database.types";
 
 type Role = Database["public"]["Enums"]["user_role"];
 
+type Filter = "active" | "locked" | "removed" | "all";
+
 const ROLE_OPTIONS: Array<{ value: Role; label: string; description: string }> = [
   {
     value: "admin",
@@ -45,6 +47,13 @@ const ROLE_OPTIONS: Array<{ value: Role; label: string; description: string }> =
   },
 ];
 
+const FILTER_TABS: Array<{ value: Filter; label: string }> = [
+  { value: "active", label: "Đang hoạt động" },
+  { value: "locked", label: "Tạm khóa" },
+  { value: "removed", label: "Đã gỡ" },
+  { value: "all", label: "Tất cả" },
+];
+
 export type SettingsUser = {
   id: string;
   full_name: string | null;
@@ -52,6 +61,7 @@ export type SettingsUser = {
   role: Role;
   is_active: boolean;
   created_at: string;
+  removed_at: string | null;
 };
 
 type PendingAction =
@@ -64,7 +74,27 @@ type PendingAction =
       type: "active";
       user: SettingsUser;
       newActive: boolean;
+    }
+  | {
+      type: "remove";
+      user: SettingsUser;
     };
+
+function userStatus(u: SettingsUser): "active" | "locked" | "removed" {
+  if (u.removed_at) return "removed";
+  return u.is_active ? "active" : "locked";
+}
+
+function statusBadge(u: SettingsUser) {
+  const s = userStatus(u);
+  if (s === "removed") {
+    return <Badge variant="destructive">Đã gỡ</Badge>;
+  }
+  if (s === "locked") {
+    return <Badge variant="secondary">Tạm khóa</Badge>;
+  }
+  return <Badge variant="success">Đang hoạt động</Badge>;
+}
 
 export function UserManagement({
   currentUserId,
@@ -76,10 +106,23 @@ export function UserManagement({
   const router = useRouter();
   const [submitting, setSubmitting] = useState<string | null>(null);
   const [confirm, setConfirm] = useState<PendingAction | null>(null);
+  const [filter, setFilter] = useState<Filter>("active");
 
-  const activeAdminCount = users.filter(
-    (u) => u.role === "admin" && u.is_active
-  ).length;
+  const activeAdminCount = useMemo(
+    () =>
+      users.filter(
+        (u) => u.role === "admin" && u.is_active && !u.removed_at
+      ).length,
+    [users]
+  );
+
+  const visibleUsers = useMemo(() => {
+    return users.filter((u) => {
+      const s = userStatus(u);
+      if (filter === "all") return true;
+      return s === filter;
+    });
+  }, [users, filter]);
 
   const callPatch = async (
     userId: string,
@@ -101,6 +144,23 @@ export function UserManagement({
       ok: false,
       needsConfirm: payload.code === "LAST_ADMIN_CONFIRMATION_REQUIRED",
       error: payload.error ?? "Có lỗi xảy ra. Vui lòng thử lại.",
+    };
+  };
+
+  const callDelete = async (
+    userId: string
+  ): Promise<{ ok: true } | { ok: false; error: string }> => {
+    const res = await fetch(`/api/users/${userId}`, { method: "DELETE" });
+    if (res.ok) return { ok: true };
+    let payload: { error?: string } = {};
+    try {
+      payload = await res.json();
+    } catch {
+      // ignore
+    }
+    return {
+      ok: false,
+      error: payload.error ?? "Không thể gỡ người dùng. Vui lòng thử lại.",
     };
   };
 
@@ -160,6 +220,34 @@ export function UserManagement({
     }
   };
 
+  const applyRemove = async (user: SettingsUser) => {
+    setSubmitting(user.id);
+    try {
+      const res = await callDelete(user.id);
+      if (!res.ok) {
+        toast.error(res.error);
+        return;
+      }
+      toast.success("Đã gỡ người dùng khỏi cửa hàng.");
+      router.refresh();
+    } finally {
+      setSubmitting(null);
+    }
+  };
+
+  const removeDisabledReason = (user: SettingsUser): string | null => {
+    if (user.removed_at) return "Người dùng đã bị gỡ khỏi cửa hàng.";
+    if (user.id === currentUserId) return "Bạn không thể gỡ chính mình.";
+    if (
+      user.role === "admin" &&
+      user.is_active &&
+      activeAdminCount <= 1
+    ) {
+      return "Không thể gỡ quản trị viên duy nhất đang hoạt động.";
+    }
+    return null;
+  };
+
   return (
     <div className="space-y-4">
       <div className="rounded-xl border border-amber-300/50 bg-amber-50/60 px-4 py-3 text-xs text-amber-900 flex items-start gap-2">
@@ -167,13 +255,46 @@ export function UserManagement({
         <p>
           Mọi thay đổi vai trò và trạng thái đều được ghi nhật ký hệ thống. Hệ
           thống không cho phép vô tình hạ quyền hoặc tạm khóa quản trị viên
-          duy nhất đang hoạt động.
+          duy nhất đang hoạt động. Khi gỡ người dùng, dữ liệu lịch sử và nhật
+          ký vẫn được giữ lại.
         </p>
       </div>
 
+      <div
+        className="flex flex-wrap items-center gap-1.5 rounded-xl bg-amber-50/60 border border-amber-300/40 p-1 w-fit"
+        role="tablist"
+        aria-label="Lọc theo trạng thái người dùng"
+      >
+        {FILTER_TABS.map((tab) => {
+          const active = filter === tab.value;
+          return (
+            <button
+              key={tab.value}
+              type="button"
+              role="tab"
+              aria-selected={active}
+              onClick={() => setFilter(tab.value)}
+              className={`text-xs px-3 py-1.5 rounded-lg transition ${
+                active
+                  ? "bg-white text-forest shadow-sm font-medium"
+                  : "text-emerald-900/70 hover:text-emerald-900"
+              }`}
+            >
+              {tab.label}
+            </button>
+          );
+        })}
+      </div>
+
+      {visibleUsers.length === 0 ? (
+        <div className="card-cream rounded-2xl p-6 text-center text-sm text-emerald-900/70">
+          Không có người dùng phù hợp với bộ lọc này.
+        </div>
+      ) : null}
+
       {/* Mobile cards */}
       <ul className="lg:hidden space-y-3">
-        {users.map((u) => (
+        {visibleUsers.map((u) => (
           <li
             key={u.id}
             className="card-cream rounded-2xl p-4 space-y-3"
@@ -192,9 +313,7 @@ export function UserManagement({
                   {u.email}
                 </div>
               </div>
-              <Badge variant={u.is_active ? "success" : "secondary"}>
-                {u.is_active ? "Đang hoạt động" : "Tạm khóa"}
-              </Badge>
+              {statusBadge(u)}
             </div>
             <div className="grid grid-cols-2 gap-2 text-[11px] text-emerald-900/60">
               <div>
@@ -214,8 +333,10 @@ export function UserManagement({
               user={u}
               isSelf={u.id === currentUserId}
               busy={submitting === u.id}
+              removeDisabledReason={removeDisabledReason(u)}
               onRoleChange={(r) => applyRoleChange(u, r)}
               onToggleActive={(active) => applyActiveChange(u, active)}
+              onRequestRemove={() => setConfirm({ type: "remove", user: u })}
             />
           </li>
         ))}
@@ -236,7 +357,7 @@ export function UserManagement({
               </tr>
             </thead>
             <tbody className="divide-y divide-amber-300/30">
-              {users.map((u) => (
+              {visibleUsers.map((u) => (
                 <tr key={u.id} className="text-emerald-950">
                   <td className="px-4 py-3 font-medium">
                     {u.full_name ?? "—"}
@@ -248,11 +369,7 @@ export function UserManagement({
                   </td>
                   <td className="px-4 py-3 text-emerald-900/85">{u.email}</td>
                   <td className="px-4 py-3">{roleLabel(u.role)}</td>
-                  <td className="px-4 py-3">
-                    <Badge variant={u.is_active ? "success" : "secondary"}>
-                      {u.is_active ? "Đang hoạt động" : "Tạm khóa"}
-                    </Badge>
-                  </td>
+                  <td className="px-4 py-3">{statusBadge(u)}</td>
                   <td className="px-4 py-3 text-emerald-900/85">
                     {formatVNDate(u.created_at)}
                   </td>
@@ -261,9 +378,13 @@ export function UserManagement({
                       user={u}
                       isSelf={u.id === currentUserId}
                       busy={submitting === u.id}
+                      removeDisabledReason={removeDisabledReason(u)}
                       onRoleChange={(r) => applyRoleChange(u, r)}
                       onToggleActive={(active) =>
                         applyActiveChange(u, active)
+                      }
+                      onRequestRemove={() =>
+                        setConfirm({ type: "remove", user: u })
                       }
                     />
                   </td>
@@ -298,23 +419,45 @@ export function UserManagement({
         <DialogContent>
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2 text-forest">
-              <Lock className="h-4 w-4" />
-              Xác nhận thay đổi quyền quản trị
+              {confirm?.type === "remove" ? (
+                <UserMinus className="h-4 w-4" />
+              ) : (
+                <Lock className="h-4 w-4" />
+              )}
+              {confirm?.type === "remove"
+                ? "Gỡ người dùng khỏi cửa hàng?"
+                : "Xác nhận thay đổi quyền quản trị"}
             </DialogTitle>
             <DialogDescription>
-              {confirm?.type === "role"
-                ? `Bạn đang thay đổi vai trò của ${
-                    confirm.user.full_name ?? confirm.user.email
-                  } sang ${roleLabel(confirm.newRole)}.`
-                : confirm?.type === "active"
-                ? `Bạn đang ${
-                    confirm.newActive ? "kích hoạt" : "tạm khóa"
-                  } ${confirm.user.full_name ?? confirm.user.email}.`
-                : ""}
-              <br />
-              Đây là quản trị viên duy nhất đang hoạt động trong cửa hàng.
-              Sau thay đổi này, có thể không còn ai có quyền quản trị. Bạn có
-              chắc chắn muốn tiếp tục?
+              {confirm?.type === "remove" ? (
+                <>
+                  Người dùng này sẽ không còn quyền truy cập dữ liệu của cửa
+                  hàng. Nhật ký hệ thống vẫn được giữ lại để đối chiếu.
+                  <br />
+                  <span className="block mt-2 text-emerald-900/85">
+                    Đối tượng:{" "}
+                    <strong>
+                      {confirm.user.full_name ?? confirm.user.email}
+                    </strong>
+                  </span>
+                </>
+              ) : (
+                <>
+                  {confirm?.type === "role"
+                    ? `Bạn đang thay đổi vai trò của ${
+                        confirm.user.full_name ?? confirm.user.email
+                      } sang ${roleLabel(confirm.newRole)}.`
+                    : confirm?.type === "active"
+                    ? `Bạn đang ${
+                        confirm.newActive ? "kích hoạt" : "tạm khóa"
+                      } ${confirm.user.full_name ?? confirm.user.email}.`
+                    : ""}
+                  <br />
+                  Đây là quản trị viên duy nhất đang hoạt động trong cửa hàng.
+                  Sau thay đổi này, có thể không còn ai có quyền quản trị. Bạn
+                  có chắc chắn muốn tiếp tục?
+                </>
+              )}
             </DialogDescription>
           </DialogHeader>
           <DialogFooter className="gap-2">
@@ -333,18 +476,22 @@ export function UserManagement({
                 if (!confirm) return;
                 if (confirm.type === "role") {
                   await applyRoleChange(confirm.user, confirm.newRole, true);
-                } else {
+                } else if (confirm.type === "active") {
                   await applyActiveChange(
                     confirm.user,
                     confirm.newActive,
                     true
                   );
+                } else {
+                  await applyRemove(confirm.user);
                 }
                 setConfirm(null);
               }}
             >
               {submitting !== null ? (
                 <Loader2 className="h-4 w-4 animate-spin" />
+              ) : confirm?.type === "remove" ? (
+                "Gỡ người dùng"
               ) : (
                 "Tôi hiểu, tiếp tục"
               )}
@@ -366,15 +513,20 @@ function UserActions({
   user,
   isSelf,
   busy,
+  removeDisabledReason,
   onRoleChange,
   onToggleActive,
+  onRequestRemove,
 }: {
   user: SettingsUser;
   isSelf: boolean;
   busy: boolean;
+  removeDisabledReason: string | null;
   onRoleChange: (role: Role) => void;
   onToggleActive: (active: boolean) => void;
+  onRequestRemove: () => void;
 }) {
+  const isRemoved = Boolean(user.removed_at);
   return (
     <div className="flex flex-wrap items-center gap-2">
       <Select
@@ -382,7 +534,7 @@ function UserActions({
         onValueChange={(v) => {
           if (v !== user.role) onRoleChange(v as Role);
         }}
-        disabled={busy}
+        disabled={busy || isRemoved}
       >
         <SelectTrigger className="h-9 w-[160px] bg-white/70 border-amber-300/60">
           <SelectValue placeholder="Chọn vai trò" />
@@ -399,9 +551,11 @@ function UserActions({
         type="button"
         variant={user.is_active ? "outline" : "default"}
         size="sm"
-        disabled={busy || isSelf}
+        disabled={busy || isSelf || isRemoved}
         title={
-          isSelf
+          isRemoved
+            ? "Người dùng đã bị gỡ khỏi cửa hàng."
+            : isSelf
             ? "Bạn không thể tự tạm khóa tài khoản của mình."
             : user.is_active
             ? "Tạm khóa người dùng"
@@ -417,6 +571,23 @@ function UserActions({
           "Kích hoạt"
         )}
       </Button>
+      {!isRemoved ? (
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          className="text-rose-700 border-rose-300/70 hover:bg-rose-50 hover:text-rose-900"
+          disabled={busy || removeDisabledReason !== null}
+          title={removeDisabledReason ?? "Gỡ người dùng khỏi cửa hàng"}
+          onClick={onRequestRemove}
+        >
+          {busy ? (
+            <Loader2 className="h-3.5 w-3.5 animate-spin" />
+          ) : (
+            "Gỡ"
+          )}
+        </Button>
+      ) : null}
     </div>
   );
 }

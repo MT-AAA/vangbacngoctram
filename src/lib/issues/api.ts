@@ -44,9 +44,22 @@ export async function requireMember(
 
   const { data: profile } = await supabase
     .from("profiles")
-    .select("id, store_id, role")
+    .select("id, store_id, role, removed_at")
     .eq("id", user.id)
     .maybeSingle();
+
+  if (profile?.removed_at) {
+    return {
+      ok: false,
+      response: NextResponse.json(
+        {
+          error:
+            "Tài khoản của bạn đã được gỡ khỏi cửa hàng. Vui lòng liên hệ quản trị viên.",
+        },
+        { status: 403 }
+      ),
+    };
+  }
 
   if (!profile?.store_id) {
     return {
