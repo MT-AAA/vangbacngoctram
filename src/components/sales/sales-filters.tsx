@@ -30,6 +30,8 @@ export function SalesFilters({ categories }: { categories: Category[] }) {
     if (to) sp.set("to", to);
     if (category && category !== "all") sp.set("category", category);
     if (status && status !== "all") sp.set("status", status);
+    // Always reset to page 1 when filters change so the user doesn't land on a
+    // page that no longer exists with the new filter set.
     router.push(`/sales${sp.toString() ? `?${sp}` : ""}`);
   };
 

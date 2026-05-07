@@ -9,7 +9,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { listMissingCost } from "@/lib/issues/queries";
+import { findMissingCostPage, listMissingCost } from "@/lib/issues/queries";
 import { MissingCostTable } from "@/components/issues/missing-cost-table";
 
 export const dynamic = "force-dynamic";
@@ -17,7 +17,11 @@ export const dynamic = "force-dynamic";
 export default async function MissingCostIssuesPage({
   searchParams,
 }: {
-  searchParams: { page?: string; include_ignored?: string };
+  searchParams: {
+    page?: string;
+    include_ignored?: string;
+    transactionId?: string;
+  };
 }) {
   const supabase = createClient();
   const {
@@ -25,11 +29,35 @@ export default async function MissingCostIssuesPage({
   } = await supabase.auth.getUser();
   if (!user) redirect("/login");
 
-  const page = Number.parseInt(searchParams.page ?? "0", 10) || 0;
   const includeIgnored = searchParams.include_ignored === "1";
+  const requestedPage = Number.parseInt(searchParams.page ?? "0", 10) || 0;
+
+  const transactionId = searchParams.transactionId?.trim() || undefined;
+
+  let resolvedPage = requestedPage;
+  let highlightId: string | undefined;
+  let highlightMissing = false;
+
+  if (transactionId) {
+    const computed = await findMissingCostPage(supabase, {
+      transactionId,
+      pageSize: 50,
+      includeIgnored,
+    });
+    if (computed === null) {
+      // Row exists but is not on this list (maybe already fixed, or ignored
+      // when includeIgnored=false). Show a friendly note instead of silently
+      // dropping the link.
+      highlightId = transactionId;
+      highlightMissing = true;
+    } else {
+      resolvedPage = computed;
+      highlightId = transactionId;
+    }
+  }
 
   const { rows, total } = await listMissingCost(supabase, {
-    page,
+    page: resolvedPage,
     pageSize: 50,
     includeIgnored,
   });
@@ -68,6 +96,21 @@ export default async function MissingCostIssuesPage({
         </Link>
       </div>
 
+      {highlightMissing ? (
+        <Card className="border-amber-300 bg-amber-50">
+          <CardHeader>
+            <CardTitle className="text-amber-900">
+              Giao dịch không còn trong danh sách thiếu giá vốn
+            </CardTitle>
+            <CardDescription className="text-amber-900/80">
+              Có thể giao dịch đã được nhập giá vốn, được đánh dấu bỏ qua, hoặc
+              đã được gắn với tồn kho. Vui lòng kiểm tra lại trên trang Bán
+              hàng.
+            </CardDescription>
+          </CardHeader>
+        </Card>
+      ) : null}
+
       {rows.length === 0 ? (
         <Card>
           <CardHeader>
@@ -92,9 +135,10 @@ export default async function MissingCostIssuesPage({
             <MissingCostTable
               rows={rows}
               total={total}
-              page={page}
+              page={resolvedPage}
               pageSize={50}
               includeIgnored={includeIgnored}
+              highlightId={highlightId}
             />
           </CardContent>
         </Card>
