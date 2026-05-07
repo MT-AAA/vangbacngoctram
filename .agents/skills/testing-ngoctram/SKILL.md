@@ -1,11 +1,11 @@
 ---
 name: testing-ngoctram
-description: Test the Ngọc Trâm jewelry dashboard end-to-end. Use when verifying signup, Excel sales import, classification, dashboard KPIs, customer purchases, or VAT direct-method tax-period flows.
+description: Test the Ngọc Trâm jewelry dashboard end-to-end. Use when verifying signup, Excel sales import, classification, dashboard KPIs, customer purchases, dashboard custom date filter, mobile drawer, /settings user management (incl. last-admin protection), help page, or VAT direct-method tax-period flows.
 ---
 
 # Testing the Ngọc Trâm dashboard
 
-This app is a Next.js 14 + Supabase dashboard for a Vietnamese jewelry shop. Phase 1 covers auth, dashboard, Excel import with dedupe, and the VAT direct-method tax engine. Phase 1.5 (PR #3) fixed signup auto-sign-in, decimal-safe Excel parsing, and the `Số HĐ` alias. Phase 2A (PR #5) reworked the importer for the real Vietnamese e-invoice export — see "Phase 2A importer" below before testing import flows. Phase 2C (PR #8 + decimal-fix PR #9) added `/customer-purchases` — see "Phase 2C customer purchases" below.
+This app is a Next.js 14 + Supabase dashboard for a Vietnamese jewelry shop. Phase 1 covers auth, dashboard, Excel import with dedupe, and the VAT direct-method tax engine. Phase 1.5 (PR #3) fixed signup auto-sign-in, decimal-safe Excel parsing, and the `Số HĐ` alias. Phase 2A (PR #5) reworked the importer for the real Vietnamese e-invoice export — see "Phase 2A importer" below before testing import flows. Phase 2C (PR #8 + decimal-fix PR #9) added `/customer-purchases` — see "Phase 2C customer purchases" below. Phase 3 (PR #14) polished the UX — mobile drawer, dashboard custom date filter, /settings user management with audit logs + last-admin protection, /help page, and VN copy review — see "Phase 3 polish PR" below.
 
 ## Devin secrets needed
 
@@ -76,6 +76,16 @@ The DB trigger `public.handle_new_user()` (in `supabase/migrations/2025050600000
 
 Subsequent users get `role='staff'` and `store_id=NULL` until an admin assigns them. **The DB reset must include `delete from public.profiles` — leaving a profile row makes the next signup get `role='staff'` instead of admin.**
 
+If the live project already contains real user accounts you must NOT touch (e.g. the human owner's email), don't reset — instead use Path A below to create an isolated test admin in the same store, and reset its password via the admin API:
+
+```js
+await fetch(`${URL_}/auth/v1/admin/users/${USER_ID}`, {
+  method: 'PUT',
+  headers: { apikey: SRK, Authorization: `Bearer ${SRK}`, 'content-type': 'application/json' },
+  body: JSON.stringify({ password: 'Devin1234!', email_confirm: true }),
+});
+```
+
 For automated tests there are two ways to get a logged-in admin user:
 
 ### Path A (preferred for test-mode setup) — Supabase admin API
@@ -99,6 +109,8 @@ await fetch(`${process.env.NEXT_PUBLIC_SUPABASE_URL}/auth/v1/admin/users`, {
 });
 ```
 
+For the **second** account onwards (when a store already exists and you want the new account to live in *that* store rather than the default "Cửa hàng của tôi" the trigger creates), follow up the create with a SQL `update public.profiles set store_id=$1, role=$2 where id=$3` and clean up the stray store the trigger created (`delete from public.stores where id <> $existing and id not in (select store_id from public.profiles where store_id is not null)`). This is the only way to force a non-first user into an existing store.
+
 Then sign in via the UI through Playwright/CDP at `localhost:29229` — the recording starts on `/dashboard`.
 
 ### Path B (for testing the actual signup form) — UI signup + email-confirm SQL
@@ -116,7 +128,7 @@ Path B is the only way to verify the signup-form code path (toast text, mode swi
 
 ## Role-gate testing — use the real browser session, not a synthetic cookie
 
-The API routes (`src/app/api/customer-purchases/[id]/route.ts`, etc.) call `requireMember(supabase, ["admin"])` against `createSupabaseServer()`, which reads cookies via Next.js' Supabase SSR adapter. **Do not** try to forge a Supabase auth cookie from `signInWithPassword`'s `access_token` and POST it via `node fetch` — the cookie envelope shape is internal to `@supabase/ssr` and Next.js middleware silently 200s with the `/login` HTML when it doesn't match (your test will then `FAIL` with a fake 200).
+The API routes (`src/app/api/customer-purchases/[id]/route.ts`, `src/app/api/users/[id]/route.ts`, etc.) call `requireMember(supabase, ["admin"])` against `createSupabaseServer()`, which reads cookies via Next.js' Supabase SSR adapter. **Do not** try to forge a Supabase auth cookie from `signInWithPassword`'s `access_token` and POST it via `node fetch` — the cookie envelope shape is internal to `@supabase/ssr` and Next.js middleware silently 200s with the `/login` HTML when it doesn't match (your test will then `FAIL` with a fake 200).
 
 The reliable pattern: keep the *same* browser session that's already signed in, and toggle the role in the DB. The existing cookie keeps validating; only the role gate changes:
 
@@ -201,28 +213,93 @@ New route `/customer-purchases` (sidebar `Mua từ khách`). Records gold/silver
 - Toasts: `Đã thêm giao dịch mua`, `Đã cập nhật giao dịch mua`, `Đã xóa giao dịch mua`. Failure: `Lưu thất bại`.
 - Table columns: `Ngày`, `Khách hàng`, `Sản phẩm`, `Phân loại`, `Tuổi`, `SL`, `Đơn giá`, `Thành tiền`, `Thuế` (`Có tính` / `Không`), `Tồn kho` (`Đã đưa vào` / `Không`), `Thao tác`.
 - Delete confirm dialog: `Xóa giao dịch mua?` body includes date, product name, total, then `Hành động này không thể hoàn tác.` Buttons: `Hủy` / `Xóa`.
-- Dashboard card: `Mua từ khách trong kỳ` — three tiles: `Tổng mua từ khách`, `Tính vào giá vốn bình quân`, `Cần kiểm tra` (with `Thiếu phân loại` and `Thiếu số tiền` sub-counts).
-- `Cần xử lý` page rows added: `X giao dịch mua thiếu phân loại` (deeplinks to `/customer-purchases?category=none`) and `X giao dịch mua thiếu số tiền`.
 
-### DB invariants future tests assert
+## Phase 3 polish PR (PR #14)
 
-- `customer_purchases` table has a `customer_purchase_create` / `customer_purchase_update` / `customer_purchase_delete` audit log entry per write — all gated by `requireMember`. Delete is admin-only.
-- Bidirectional inventory link: `customer_purchases.inventory_item_id` ↔ `inventory_items.source_customer_purchase_id`. `removeInventoryLink` nulls **both** sides; it does **not** hard-delete the inventory row (it might already be partially sold).
-- Toggling `Đưa vào tồn kho` off then back on must produce a **new** `inventory_items` row — `ensureInventoryItemForPurchase` does NOT re-attach the previously-detached row. So the test should expect `inventory_items` count to grow by 1 each toggle-on.
-- `purity` is a free-text column; the schema validates it server-side against `["9999", "24K", "18K", "14K", "10K", "925", "other"]`.
-- Default page size is 50 rows.
+This section captures four lessons learned testing the polish PR. They generalize to any future PR that touches mobile UI, the Settings user table, or VN copy on `/api/*` routes.
 
-### Decimal-form hydration pitfall (PR #9 root cause)
+### Mobile viewport when `wmctrl` / `xdotool` resize is blocked
 
-When you build any new edit dialog that pre-populates a numeric input from a DB row, **do not** write `String(row.quantity)` — for `1.5` that produces `"1.5"`, which `parseVietnameseNumber` (`src/lib/utils.ts`) interprets as `"1.5"` thousands-separator and parses as `15`. Saving without changing the field would silently inflate the value 10×. Use `formatNumberForInput(value, maxFractionDigits)` (also in `src/lib/utils.ts`) which renders Vietnamese-locale strings (`"1,5"`, `"4200000"`) that round-trip losslessly through the parser. The regression test in `src/lib/__tests__/utils.test.ts` pins this behaviour — extend it whenever you add a new numeric form input.
+The testing VM's window manager often refuses to actually resize the Chrome window — `wmctrl -r :ACTIVE: -e 0,0,0,400,820` and `xdotool windowsize $WID 400 820` both no-op (geometry stays 1600x1156). Re-launching Chrome with `--window-size=400,800` is also banned by the system prompt ("There is a Chrome browser already running and focused on the screen. Do NOT try to launch, start, or kill Chrome"). The reliable workflow is Chrome's built-in device-emulation:
 
-### End-to-end test order (use after a fresh DB reset + Path-A signup)
+```
+1. Click on the page area to focus Chrome.
+2. Press F12 to open DevTools.
+3. Press Ctrl+Shift+D to dock DevTools at the bottom (so the device viewport gets full width).
+4. Press Ctrl+Shift+M to toggle the device toolbar ("Responsive" mode).
+5. The device-toolbar shows current dimensions at the top of the viewport. If you need a specific width, click the dimensions field and type a value (e.g. 400).
+```
 
-Follow this exact sequence to keep DB state predictable across tests:
+While DevTools is open + device toolbar active, the recording will show the DevTools panel at the bottom — that's fine. To go back to desktop, press Ctrl+Shift+M (off device toolbar) then F12 (close DevTools). Tailwind `lg:` breakpoints (1024px) trigger correctly when the device viewport is below that width.
 
-1. **Create**: Vàng tây 18K, customer Nguyễn Văn A, `1,5 chỉ × 4.200.000` → expect `Thành tiền=6300000` auto-calc, `customer_purchases` row, linked `inventory_items` row, `customer_purchase_create` audit, dashboard tile `6.300.000 ₫ / 1 giao dịch` in both `Tổng mua từ khách` and `Tính vào giá vốn bình quân`.
-2. **Edit toggle off**: open the row, uncheck `Đưa vào tồn kho`, save with no other change → `customer_purchases.inventory_item_id IS NULL`, `inventory_items.source_customer_purchase_id IS NULL`, **`quantity` STILL `1.5`** (regression check for PR #9).
-3. **Edit toggle on**: re-open, re-check, save → new `inventory_items` row, `inventory_items` count is now 2, `customer_purchases.quantity` STILL `1.5`.
-4. **Add second row** + **filter**: Bạc miếng test, `is_tax_purchase_input=false`. Verify `?tax_input=1` shows only Vàng tây, `?tax_input=0` shows only Bạc; dashboard `Tính vào giá vốn` excludes Bạc.
-5. **Admin DELETE**: trash icon → confirm dialog → row removed → `customer_purchase_delete` audit row.
-6. **Role gate (shell)**: demote to staff, refresh — trash icon hidden, role label `Nhân viên`. Drive `fetch('/api/customer-purchases/<id>', {method:'DELETE'})` via Playwright/CDP `page.evaluate` (see "Role-gate testing" above) → expect `403` + `{"error":"Bạn không có quyền thực hiện thao tác này"}`. Re-promote, re-issue → `200 {"ok":true}`.
+**Don't** pass coordinates outside the device viewport's pixel area when clicking — `coordinate=[510, 400]` is page coordinates relative to the device viewport, not the full Chrome window.
+
+### `/api/*` 401 copy is unreachable via plain logged-out curl
+
+PR #14 replaced English `"Unauthorized"` 401 responses with `"Bạn cần đăng nhập để tiếp tục."` across 7 files (`src/app/api/import/preview`, `…/import/commit`, `…/tax/periods` (+`/[id]/recalc`), `src/lib/inventory/api.ts`, `src/lib/customer-purchases/api.ts`, `src/lib/issues/api.ts`).
+
+A plain logged-out `curl http://localhost:3000/api/import/preview` returns `307 → /login?next=/api/import/preview`, NOT the new VN body. The reason is `src/lib/supabase/middleware.ts` — it redirects every unauthenticated non-public request to `/login` before the route handler runs. The new VN 401 body therefore only fires on the narrow defense-in-depth path where middleware passes (cookie present + valid envelope) but the handler's own `getUser()` finds no user (e.g. session revoked between middleware and handler).
+
+**To verify these strings are wired in, prefer code grep over runtime curl:**
+
+```
+rg -n 'Unauthorized' src       # expect: no matches
+rg -n 'Bạn cần đăng nhập' src  # expect: 7 hits across api/lib
+```
+
+If you really need a runtime test, write a Vitest test that calls the route handler directly with a stubbed `getUser()` returning `null` — don't try to drive it via curl + middleware.
+
+### Last-admin protection (409 LAST_ADMIN_CONFIRMATION_REQUIRED)
+
+`PATCH /api/users/[id]` returns `409 { error, code: "LAST_ADMIN_CONFIRMATION_REQUIRED" }` when the requested change would leave the store with zero active admins. The client (`src/components/settings/user-management.tsx`) catches this and shows a confirmation dialog with title `Xác nhận thay đổi quyền quản trị` and `Hủy` / `Tôi hiểu, tiếp tục` buttons. To trigger this, the count of active admins for the caller's `store_id` must be exactly 1.
+
+Setup pattern (when the store has multiple real admins you don't want to touch):
+
+```js
+// Temporarily deactivate other admins so only the test-admin is left active
+await c.query("update public.profiles set is_active=false where id in ($1, $2)", [otherAdminId1, otherAdminId2]);
+// In the UI, demote the test-admin (self) → 409 + dialog
+// Click Hủy → state preserved, no audit log row written
+// Restore at end
+await c.query("update public.profiles set is_active=true where id in ($1, $2)", [otherAdminId1, otherAdminId2]);
+```
+
+The primary admin's row has its `Tạm khóa` button disabled (greyed) but the role dropdown is enabled — it's the path that triggers the 409. Self-deactivate is blocked at the UI level entirely. The audit-log row writes the before/after `role` and `is_active`; verify with `select * from public.audit_logs where entity_type='profile' order by created_at desc limit 1`.
+
+### Settings user table is optimistic-toast
+
+After a successful role change in `/settings`, the success toast appears immediately but the row's role dropdown does NOT update until you reload the page (refresh / re-route). The DB and audit log are written correctly. Don't treat the stale dropdown as a failure — instead, verify with SQL:
+
+```
+select role, is_active from public.profiles where id=$1;
+```
+
+If future PRs add `router.refresh()` after the PATCH, this gotcha will go away.
+
+### Dashboard custom date filter — anchor on KPI deltas, not just URL
+
+The filter persists in URL params (`?period=custom&from=YYYY-MM-DD&to=YYYY-MM-DD`) but the most adversarial assertion is that the KPI numbers actually change. The fixture has known per-month totals you can verify against:
+
+| Range | `Tổng bán ra` |
+|---|---|
+| 2026-01 | 1,325,630,000 |
+| 2026-02 | 2,465,265,000 |
+| 2026-03 | 3,128,785,000 |
+| Q1 2026 | 6,919,680,000 |
+| Current month (May 2026) | 0 |
+
+Pick two ranges with different totals (e.g. Jan vs March) and assert both URL params AND KPI value change. If the custom range is silently being dropped, the dashboard will fall back to the current month and show `0 ₫` for both.
+
+Validation strings are exact and must match `src/components/dashboard/period-filter.tsx`:
+- Empty `Từ ngày` or `Đến ngày` → `Vui lòng chọn cả ngày bắt đầu và ngày kết thúc.`
+- `Từ ngày` > `Đến ngày` → `Khoảng ngày không hợp lệ`
+
+The `Đặt lại` button puts the URL back to `?period=month` (default), not `?period=custom&from=…`.
+
+### Help page has 13 sections with stable IDs
+
+`src/app/(app)/help/page.tsx` defines 13 sections with IDs you can anchor to: `tong-quan`, `quy-trinh`, `dashboard`, `import`, `sales`, `customer-purchases`, `inventory`, `categories`, `tax-reports`, `import-history`, `settings`, `faq`, `tax-note`. The TOC links use `<a href="#${id}">` so click navigation updates the URL hash to `…/help#${id}` without a page reload. The exact tax disclaimer in section 13 (id=`tax-note`):
+
+> Phần mềm hỗ trợ tổng hợp dữ liệu và ước tính số thuế theo cấu hình. Số liệu cuối cùng cần được kế toán hoặc người phụ trách thuế kiểm tra trước khi kê khai.
+
+On desktop the TOC is sticky on the left (`lg:sticky lg:top-4`); on mobile the TOC stacks above the content as a single column. No horizontal overflow at 360px.
