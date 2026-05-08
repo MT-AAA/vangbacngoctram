@@ -21,7 +21,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { Plus, Pencil, Archive, Search, X } from "lucide-react";
+import { Plus, Pencil, Archive, Search, X, Trash2 } from "lucide-react";
 import { formatNumber, formatVND, formatVNDate } from "@/lib/utils";
 import {
   INVENTORY_SOURCE_TYPES,
@@ -32,6 +32,7 @@ import {
 import type { InventoryRow } from "@/lib/inventory/queries";
 import { InventoryForm, type CategoryOption } from "./inventory-form";
 import { InventoryArchiveDialog } from "./archive-dialog";
+import { InventoryDeleteDialog } from "./delete-dialog";
 
 type Props = {
   rows: InventoryRow[];
@@ -70,6 +71,7 @@ export function InventoryClient({
   const [editing, setEditing] = useState<InventoryRow | null>(null);
   const [creating, setCreating] = useState(false);
   const [archiving, setArchiving] = useState<InventoryRow | null>(null);
+  const [deleting, setDeleting] = useState<InventoryRow | null>(null);
   const [pending, startTransition] = useTransition();
 
   // Local copies of filter inputs so the user can type before submitting.
@@ -413,6 +415,16 @@ export function InventoryClient({
                             <Archive className="h-3.5 w-3.5" />
                           </Button>
                         ) : null}
+                        {canArchive ? (
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            className="text-destructive hover:text-destructive"
+                            onClick={() => setDeleting(r)}
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </Button>
+                        ) : null}
                       </div>
                     </TableCell>
                   </TableRow>
@@ -475,6 +487,11 @@ export function InventoryClient({
         item={archiving}
         onOpenChange={(o) => !o && setArchiving(null)}
         onArchived={onSaved}
+      />
+      <InventoryDeleteDialog
+        item={deleting}
+        onOpenChange={(o) => !o && setDeleting(null)}
+        onDeleted={onSaved}
       />
     </>
   );

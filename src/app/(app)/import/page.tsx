@@ -6,6 +6,7 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { ImportClient } from "@/components/import/import-client";
+import { ImportRollbackButton } from "@/components/import/import-rollback-button";
 import { createClient } from "@/lib/supabase/server";
 import {
   Table,
@@ -73,6 +74,7 @@ export default async function ImportPage() {
                   <TableHead className="text-right">Mới</TableHead>
                   <TableHead className="text-right">Cập nhật</TableHead>
                   <TableHead className="text-right">Lỗi</TableHead>
+                  <TableHead className="text-right">Thao tác</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -85,7 +87,7 @@ export default async function ImportPage() {
                         variant={
                           imp.status === "completed"
                             ? "success"
-                            : imp.status === "failed"
+                            : imp.status === "failed" || imp.status === "rolled_back"
                             ? "destructive"
                             : "secondary"
                         }
@@ -96,6 +98,8 @@ export default async function ImportPage() {
                           ? "Thất bại"
                           : imp.status === "processing"
                           ? "Đang xử lý"
+                          : imp.status === "rolled_back"
+                          ? "Đã xóa dữ liệu"
                           : "Đã tải lên"}
                       </Badge>
                     </TableCell>
@@ -116,6 +120,20 @@ export default async function ImportPage() {
                     <TableCell className="text-right">{imp.inserted_rows}</TableCell>
                     <TableCell className="text-right">{imp.updated_rows}</TableCell>
                     <TableCell className="text-right">{imp.error_rows}</TableCell>
+                    <TableCell className="text-right align-top">
+                      {imp.status === "completed" ? (
+                        <ImportRollbackButton
+                          importId={imp.id}
+                          fileName={imp.file_name}
+                          transactionCount={
+                            imp.transaction_line_count || imp.total_rows || 0
+                          }
+                          totalAmount={imp.total_amount ?? 0}
+                        />
+                      ) : (
+                        <span className="text-xs text-muted-foreground">—</span>
+                      )}
+                    </TableCell>
                   </TableRow>
                 ))}
               </TableBody>

@@ -116,6 +116,15 @@ export type DashboardCustomerPurchaseSummary = {
     total_amount: number;
     is_tax_purchase_input: boolean;
   }>;
+  rangeRows: Array<{
+    total_amount: number | null;
+    quantity: number | null;
+    weight: number | null;
+    category:
+      | { name: string; code: string }
+      | { name: string; code: string }[]
+      | null;
+  }>;
 };
 
 export async function loadDashboardCustomerPurchases(
@@ -126,7 +135,7 @@ export async function loadDashboardCustomerPurchases(
     client
       .from("customer_purchases")
       .select(
-        "id, total_amount, product_category_id, is_tax_purchase_input"
+        "id, total_amount, product_category_id, is_tax_purchase_input, quantity, weight, category:product_categories(name, code)"
       )
       .gte("purchase_date", range.from)
       .lte("purchase_date", range.to),
@@ -177,5 +186,11 @@ export async function loadDashboardCustomerPurchases(
         is_tax_purchase_input: r.is_tax_purchase_input,
       };
     }),
+    rangeRows: (rangeRows ?? []).map((r) => ({
+      total_amount: r.total_amount,
+      quantity: r.quantity,
+      weight: r.weight,
+      category: r.category as DashboardCustomerPurchaseSummary["rangeRows"][number]["category"],
+    })),
   };
 }

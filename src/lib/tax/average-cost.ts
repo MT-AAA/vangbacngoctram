@@ -5,12 +5,12 @@
  * cost using the average purchase price computed from manual customer
  * purchases (the `customer_purchases` table) within the selected tax period.
  *
- *     average_purchase_price = SUM(total_amount) / SUM(quantity)
+ *     average_purchase_price = SUM(total_amount) / SUM(weight_chi)
  *                              over customer_purchases in the period,
  *                              grouped by product_category_id,
  *                              filtered to is_tax_purchase_input = true.
  *
- *     estimated_purchase_cost_amount = sales.quantity × average_purchase_price
+ *     estimated_purchase_cost_amount = sales.weight_chi × average_purchase_price
  *
  * The average is applied ONLY to sales rows where:
  *   - `purchase_cost_amount IS NULL`
@@ -29,6 +29,7 @@
 
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@/lib/supabase/database.types";
+import { toChi } from "@/lib/reports/weight";
 
 type DBClient = SupabaseClient<Database>;
 
@@ -84,6 +85,8 @@ export type CustomerPurchaseAggregateInput = {
   product_category_id: string | null;
   total_amount: number | null;
   quantity: number | null;
+  weight?: number | null;
+  weight_unit?: string | null;
 };
 
 /**
@@ -105,7 +108,11 @@ export function aggregateAverages(
 
   for (const row of rows) {
     const total = Number(row.total_amount ?? 0);
-    const qty = Number(row.quantity ?? 0);
+    const quantity = Number(row.quantity ?? 0);
+    const weight = row.weight === null || row.weight === undefined
+      ? quantity
+      : toChi(Number(row.weight), row.weight_unit ?? "chỉ");
+    const qty = Number(weight || quantity || 0);
     if (!Number.isFinite(total) || !Number.isFinite(qty)) continue;
     if (total <= 0 || qty <= 0) continue;
     const key = row.product_category_id ?? null;
@@ -143,6 +150,8 @@ export type EstimateSaleInput = {
   product_name_raw: string;
   product_category_id: string | null;
   quantity: number | null;
+  weight?: number | null;
+  weight_unit?: string | null;
   total_amount: number | null;
 };
 
@@ -167,7 +176,11 @@ export function projectAffectedRows(
     if (!s.product_category_id) continue;
     const avg = avgByCategory.get(s.product_category_id);
     if (!avg || avg.average_purchase_price <= 0) continue;
-    const qty = Number(s.quantity ?? 0);
+    const quantity = Number(s.quantity ?? 0);
+    const weight = s.weight === null || s.weight === undefined
+      ? quantity
+      : toChi(Number(s.weight), s.weight_unit ?? "chỉ");
+    const qty = Number(weight || quantity || 0);
     const total = Number(s.total_amount ?? 0);
     if (!Number.isFinite(qty) || qty <= 0) continue;
 
@@ -229,7 +242,7 @@ export async function previewAverageCostApply(
       .eq("store_id", storeId),
     client
       .from("customer_purchases")
-      .select("product_category_id, total_amount, quantity")
+      .select("product_category_id, total_amount, quantity, weight, weight_unit")
       .eq("store_id", storeId)
       .eq("is_tax_purchase_input", true)
       .gte("purchase_date", period.start_date)
@@ -237,7 +250,7 @@ export async function previewAverageCostApply(
     client
       .from("sales_transactions")
       .select(
-        "id, sale_date, invoice_no, invoice_series, product_name_raw, product_category_id, quantity, total_amount"
+        "id, sale_date, invoice_no, invoice_series, product_name_raw, product_category_id, quantity, weight, weight_unit, total_amount"
       )
       .eq("store_id", storeId)
       .is("purchase_cost_amount", null)
@@ -269,6 +282,8 @@ export async function previewAverageCostApply(
       product_category_id: r.product_category_id ?? null,
       total_amount: r.total_amount,
       quantity: r.quantity,
+      weight: r.weight,
+      weight_unit: r.weight_unit,
     })),
     nameById
   );
@@ -282,6 +297,8 @@ export async function previewAverageCostApply(
       product_name_raw: r.product_name_raw,
       product_category_id: r.product_category_id,
       quantity: r.quantity,
+      weight: r.weight,
+      weight_unit: r.weight_unit,
       total_amount: r.total_amount,
     })),
     categories

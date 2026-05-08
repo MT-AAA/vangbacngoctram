@@ -21,6 +21,7 @@ export function SalesFilters({ categories }: { categories: Category[] }) {
 
   const [from, setFrom] = useState(params.get("from") ?? "");
   const [to, setTo] = useState(params.get("to") ?? "");
+  const [invoice, setInvoice] = useState(params.get("invoice") ?? "");
   const [category, setCategory] = useState(params.get("category") ?? "all");
   const [status, setStatus] = useState(params.get("status") ?? "all");
 
@@ -28,8 +29,13 @@ export function SalesFilters({ categories }: { categories: Category[] }) {
     const sp = new URLSearchParams();
     if (from) sp.set("from", from);
     if (to) sp.set("to", to);
+    if (invoice.trim()) sp.set("invoice", invoice.trim());
     if (category && category !== "all") sp.set("category", category);
     if (status && status !== "all") sp.set("status", status);
+    const sort = params.get("sort");
+    const dir = params.get("dir");
+    if (sort) sp.set("sort", sort);
+    if (dir) sp.set("dir", dir);
     // Always reset to page 1 when filters change so the user doesn't land on a
     // page that no longer exists with the new filter set.
     router.push(`/sales${sp.toString() ? `?${sp}` : ""}`);
@@ -38,13 +44,14 @@ export function SalesFilters({ categories }: { categories: Category[] }) {
   const reset = () => {
     setFrom("");
     setTo("");
+    setInvoice("");
     setCategory("all");
     setStatus("all");
     router.push("/sales");
   };
 
   return (
-    <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-5 lg:items-end">
+    <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-6 lg:items-end">
       <div className="space-y-1">
         <Label>Từ ngày</Label>
         <Input type="date" value={from} onChange={(e) => setFrom(e.target.value)} />
@@ -52,6 +59,14 @@ export function SalesFilters({ categories }: { categories: Category[] }) {
       <div className="space-y-1">
         <Label>Đến ngày</Label>
         <Input type="date" value={to} onChange={(e) => setTo(e.target.value)} />
+      </div>
+      <div className="space-y-1">
+        <Label>Số hóa đơn</Label>
+        <Input
+          value={invoice}
+          onChange={(e) => setInvoice(e.target.value)}
+          placeholder="vd: 123"
+        />
       </div>
       <div className="space-y-1">
         <Label>Phân loại</Label>

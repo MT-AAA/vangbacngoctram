@@ -22,7 +22,11 @@ import {
 } from "@/components/ui/dialog";
 import { Loader2 } from "lucide-react";
 import { toast } from "sonner";
-import { formatNumberForInput, parseVietnameseNumber } from "@/lib/utils";
+import {
+  formatMoneyInput,
+  formatNumberForInput,
+  parseVietnameseNumber,
+} from "@/lib/utils";
 import {
   INVENTORY_SOURCE_TYPES,
   INVENTORY_STATUSES,
@@ -77,10 +81,10 @@ function todayIso(): string {
 
 function emptyForm(): FormState {
   return {
-    product_name: "",
+    product_name: "Tồn đầu kỳ Q2/2026 - ",
     category_id: "",
     sku: "",
-    product_type: "",
+    product_type: "Tồn đầu kỳ",
     purity: "",
     unit: "chỉ",
     weight_unit: "chỉ",
@@ -91,12 +95,12 @@ function emptyForm(): FormState {
     purchase_unit_price: "",
     purchase_cost_amount: "",
     selling_price: "",
-    source_type: "manual",
-    source_reference: "",
+    source_type: "adjustment",
+    source_reference: "TONDAU-Q2-2026",
     status: "in_stock",
     is_tax_cost_source: true,
-    imported_at: todayIso(),
-    note: "",
+    imported_at: "2026-04-01",
+    note: "Tồn đầu kỳ Q2/2026 theo báo cáo kho cuối Q1/2026",
     attachment_url: "",
     cost_overridden: false,
     confirm_overwrite_cost: false,
@@ -195,7 +199,7 @@ export function InventoryForm({
         ? f
         : {
             ...f,
-            purchase_cost_amount: String(Math.round(computedCost)),
+            purchase_cost_amount: formatMoneyInput(Math.round(computedCost)),
           }
     );
   }, [computedCost, form.cost_overridden]);
@@ -314,29 +318,40 @@ export function InventoryForm({
       <DialogContent className="max-w-3xl overflow-y-auto max-h-[90vh]">
         <DialogHeader>
           <DialogTitle>
-            {editing ? "Sửa mặt hàng tồn" : "Thêm mặt hàng tồn"}
+            {editing ? "Sửa tồn kho" : "Nhập tồn đầu kỳ / thêm tồn kho"}
           </DialogTitle>
           <DialogDescription>
             {editing
-              ? "Cập nhật thông tin mặt hàng tồn kho. Mọi thay đổi đều được ghi vào nhật ký."
-              : "Khai báo mặt hàng vào kho. Để trống SKU để hệ thống tự sinh theo nhóm và ngày."}
+              ? "Cập nhật số lượng, trọng lượng và giá trị tồn. Mọi thay đổi đều được ghi vào nhật ký."
+              : "Dùng để nhập tay tồn đầu kỳ Q2 hoặc khai báo hàng tồn mới. Với báo cáo kho, nhập trọng lượng tồn và tổng giá trị tồn."}
           </DialogDescription>
         </DialogHeader>
 
         <form onSubmit={handleSubmit} className="space-y-4">
+          <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
+            <p className="font-medium">Gợi ý nhập tồn đầu kỳ Q2/2026</p>
+            <p>
+              Tên hàng: “Tồn đầu kỳ Q2/2026 - Vàng ta/Bạc/Vàng tây”, ngày nhập
+              01/04/2026, mã chứng từ TONDAU-Q2-2026. Nhập “Trọng lượng tồn” và
+              “Tổng giá trị tồn”; đơn giá bình quân có thể nhập theo báo cáo hoặc
+              để hệ thống tự suy ra khi gắn giá vốn.
+            </p>
+          </div>
+
           <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
             <div>
-              <Label htmlFor="product_name">Tên hàng *</Label>
+              <Label htmlFor="product_name">Tên dòng tồn *</Label>
               <Input
                 id="product_name"
                 value={form.product_name}
                 onChange={(e) => update("product_name", e.target.value)}
-                placeholder="vd: Nhẫn vàng 9999 1 chỉ"
+                placeholder="vd: Tồn đầu kỳ Q2/2026 - Vàng ta"
                 disabled={pending}
               />
             </div>
             <div>
-              <Label htmlFor="category">Nhóm *</Label>
+              <Label htmlFor="category">Nhóm hàng *
+</Label>
               <Select
                 value={form.category_id || undefined}
                 onValueChange={(v) => update("category_id", v)}
@@ -365,12 +380,12 @@ export function InventoryForm({
               />
             </div>
             <div>
-              <Label htmlFor="product_type">Loại sản phẩm</Label>
+              <Label htmlFor="product_type">Loại dòng tồn</Label>
               <Input
                 id="product_type"
                 value={form.product_type}
                 onChange={(e) => update("product_type", e.target.value)}
-                placeholder="vd: Nhẫn, Dây chuyền"
+                placeholder="vd: Tồn đầu kỳ"
                 disabled={pending}
               />
             </div>
@@ -407,7 +422,7 @@ export function InventoryForm({
 
           <div className="grid grid-cols-1 gap-3 md:grid-cols-4">
             <div>
-              <Label htmlFor="initial_quantity">SL ban đầu</Label>
+              <Label htmlFor="initial_quantity" className="flex min-h-10 items-end">SL dòng ban đầu</Label>
               <Input
                 id="initial_quantity"
                 value={form.initial_quantity}
@@ -417,7 +432,7 @@ export function InventoryForm({
               />
             </div>
             <div>
-              <Label htmlFor="current_quantity">SL hiện có</Label>
+              <Label htmlFor="current_quantity" className="flex min-h-10 items-end">SL dòng hiện có</Label>
               <Input
                 id="current_quantity"
                 value={form.current_quantity}
@@ -427,60 +442,61 @@ export function InventoryForm({
               />
             </div>
             <div>
-              <Label htmlFor="initial_weight">TL ban đầu</Label>
+              <Label htmlFor="initial_weight" className="flex min-h-10 items-end">Trọng lượng tồn ban đầu (chỉ)</Label>
               <Input
                 id="initial_weight"
                 value={form.initial_weight}
                 onChange={(e) => update("initial_weight", e.target.value)}
-                placeholder="1,5"
+                placeholder="vd: 106"
                 disabled={pending}
               />
             </div>
             <div>
-              <Label htmlFor="current_weight">TL hiện có</Label>
+              <Label htmlFor="current_weight" className="flex min-h-10 items-end">Trọng lượng tồn hiện có (chỉ)</Label>
               <Input
                 id="current_weight"
                 value={form.current_weight}
                 onChange={(e) => update("current_weight", e.target.value)}
-                placeholder="1,5"
+                placeholder="vd: 106"
                 disabled={pending}
               />
+              <p className="min-h-10 text-xs leading-5 text-muted-foreground">Nếu để trống, hệ thống dùng bằng trọng lượng ban đầu.</p>
             </div>
           </div>
 
           <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
             <div>
-              <Label htmlFor="purchase_unit_price">Giá mua đơn vị (VND)</Label>
+              <Label htmlFor="purchase_unit_price" className="flex min-h-5 items-center">Đơn giá bình quân / chỉ (VND)</Label>
               <Input
                 id="purchase_unit_price"
                 value={form.purchase_unit_price}
                 onChange={(e) => {
-                  update("purchase_unit_price", e.target.value);
+                  update("purchase_unit_price", formatMoneyInput(e.target.value));
                 }}
-                placeholder="vd: 7.500.000 / chỉ"
+                placeholder="vd: 16.466.700"
                 disabled={pending}
               />
             </div>
             <div>
-              <Label htmlFor="purchase_cost_amount">Giá mua vào (VND)</Label>
+              <Label htmlFor="purchase_cost_amount" className="flex min-h-5 items-center">Tổng giá trị tồn (VND)</Label>
               <Input
                 id="purchase_cost_amount"
                 value={form.purchase_cost_amount}
                 onChange={(e) => {
-                  update("purchase_cost_amount", e.target.value);
+                  update("purchase_cost_amount", formatMoneyInput(e.target.value));
                   update("cost_overridden", true);
                 }}
-                placeholder="Tự tính nếu để trống"
+                placeholder="vd: 1.745.470.239"
                 disabled={pending}
               />
             </div>
             <div>
-              <Label htmlFor="selling_price">Giá bán niêm yết (VND)</Label>
+              <Label htmlFor="selling_price" className="flex min-h-5 items-center">Giá bán niêm yết (nếu có)</Label>
               <Input
                 id="selling_price"
                 value={form.selling_price}
-                onChange={(e) => update("selling_price", e.target.value)}
-                placeholder="vd: 8.200.000"
+                onChange={(e) => update("selling_price", formatMoneyInput(e.target.value))}
+                placeholder="Không bắt buộc"
                 disabled={pending}
               />
             </div>
@@ -512,7 +528,7 @@ export function InventoryForm({
                 id="source_reference"
                 value={form.source_reference}
                 onChange={(e) => update("source_reference", e.target.value)}
-                placeholder="vd: PNK-001"
+                placeholder="TONDAU-Q2-2026"
                 disabled={pending}
               />
             </div>
@@ -539,7 +555,7 @@ export function InventoryForm({
 
           <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
             <div>
-              <Label htmlFor="imported_at">Ngày nhập</Label>
+              <Label htmlFor="imported_at">Ngày ghi nhận tồn</Label>
               <Input
                 id="imported_at"
                 type="date"
@@ -581,7 +597,7 @@ export function InventoryForm({
               disabled={pending}
             />
             <Label htmlFor="is_tax_cost_source" className="cursor-pointer">
-              Dùng làm giá vốn cho hóa đơn bán
+              Dùng tồn này làm giá vốn khi bán trong Q2
             </Label>
           </div>
 

@@ -21,6 +21,7 @@ export default async function MissingCostIssuesPage({
     page?: string;
     include_ignored?: string;
     transactionId?: string;
+    category?: string;
   };
 }) {
   const supabase = createClient();
@@ -33,6 +34,7 @@ export default async function MissingCostIssuesPage({
   const requestedPage = Number.parseInt(searchParams.page ?? "0", 10) || 0;
 
   const transactionId = searchParams.transactionId?.trim() || undefined;
+  const categoryCode = searchParams.category?.trim() || null;
 
   let resolvedPage = requestedPage;
   let highlightId: string | undefined;
@@ -60,6 +62,7 @@ export default async function MissingCostIssuesPage({
     page: resolvedPage,
     pageSize: 50,
     includeIgnored,
+    categoryCode,
   });
 
   return (
@@ -82,8 +85,8 @@ export default async function MissingCostIssuesPage({
             ) : null}
           </h1>
           <p className="text-sm text-muted-foreground">
-            Dòng bán hàng chưa có giá vốn (purchase_cost_amount). Thuế GTGT
-            trực tiếp cần giá vốn để tính giá trị gia tăng.
+            Các dòng bán hàng này chưa có giá mua vào/giá vốn nên chưa đủ dữ
+            liệu để tính thuế GTGT chính xác.
           </p>
         </div>
         <Link
@@ -116,19 +119,32 @@ export default async function MissingCostIssuesPage({
           <CardHeader>
             <CardTitle>Không còn dòng nào thiếu giá vốn</CardTitle>
             <CardDescription>
-              {includeIgnored
-                ? "Cũng không có dòng nào được đánh dấu bỏ qua."
-                : "Tất cả dòng bán hàng đã có giá vốn hoặc được đánh dấu bỏ qua."}
+              {categoryCode
+                ? "Nhóm hàng đang lọc đã được xử lý xong. Bạn có thể quay lại xem tất cả dòng còn lại."
+                : "Tất cả dòng bán hàng đã có giá vốn."}
             </CardDescription>
           </CardHeader>
+          {categoryCode ? (
+            <CardContent>
+              <Link
+                href="/issues/missing-cost"
+                className="inline-flex rounded-md bg-primary px-3 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90"
+              >
+                Quay lại tất cả dòng cần xử lý
+              </Link>
+            </CardContent>
+          ) : null}
         </Card>
       ) : (
         <Card>
           <CardHeader>
             <CardTitle>{total.toLocaleString("vi-VN")} dòng cần xử lý</CardTitle>
             <CardDescription>
-              Chọn các dòng cần thao tác hàng loạt, sau đó nhập giá vốn hoặc
-              đánh dấu bỏ qua. Mỗi thao tác đều được ghi vào nhật ký hệ thống.
+              <span className="font-semibold text-red-700">
+                Ưu tiên gắn tồn kho để hệ thống lấy đúng giá vốn và trừ đúng tồn
+                kho.
+              </span>{" "}
+              Chỉ nhập giá vốn thủ công khi thật sự cần.
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -139,6 +155,7 @@ export default async function MissingCostIssuesPage({
               pageSize={50}
               includeIgnored={includeIgnored}
               highlightId={highlightId}
+              categoryCode={categoryCode}
             />
           </CardContent>
         </Card>

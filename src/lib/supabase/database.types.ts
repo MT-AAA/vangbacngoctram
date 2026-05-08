@@ -557,6 +557,11 @@ export type Database = {
           customer_phone: string | null
           customer_tax_code: string | null
           id: string
+          duplicate_resolution_group_id: string | null
+          duplicate_resolution_note: string | null
+          duplicate_resolution_status: string | null
+          duplicate_resolved_at: string | null
+          duplicate_resolved_by: string | null
           ignored_at: string | null
           ignored_by: string | null
           ignored_reason: string | null
@@ -577,6 +582,9 @@ export type Database = {
           product_name: string | null
           product_name_raw: string
           purchase_cost_amount: number | null
+          purchase_cost_edit_reason: string | null
+          purchase_cost_edited_at: string | null
+          purchase_cost_edited_by: string | null
           purchase_cost_source: Database["public"]["Enums"]["purchase_cost_source"]
           quantity: number
           raw_data: Json | null
@@ -609,6 +617,11 @@ export type Database = {
           customer_phone?: string | null
           customer_tax_code?: string | null
           id?: string
+          duplicate_resolution_group_id?: string | null
+          duplicate_resolution_note?: string | null
+          duplicate_resolution_status?: string | null
+          duplicate_resolved_at?: string | null
+          duplicate_resolved_by?: string | null
           ignored_at?: string | null
           ignored_by?: string | null
           ignored_reason?: string | null
@@ -629,6 +642,9 @@ export type Database = {
           product_name?: string | null
           product_name_raw: string
           purchase_cost_amount?: number | null
+          purchase_cost_edit_reason?: string | null
+          purchase_cost_edited_at?: string | null
+          purchase_cost_edited_by?: string | null
           purchase_cost_source?: Database["public"]["Enums"]["purchase_cost_source"]
           quantity?: number
           raw_data?: Json | null
@@ -661,6 +677,11 @@ export type Database = {
           customer_phone?: string | null
           customer_tax_code?: string | null
           id?: string
+          duplicate_resolution_group_id?: string | null
+          duplicate_resolution_note?: string | null
+          duplicate_resolution_status?: string | null
+          duplicate_resolved_at?: string | null
+          duplicate_resolved_by?: string | null
           ignored_at?: string | null
           ignored_by?: string | null
           ignored_reason?: string | null
@@ -681,6 +702,9 @@ export type Database = {
           product_name?: string | null
           product_name_raw?: string
           purchase_cost_amount?: number | null
+          purchase_cost_edit_reason?: string | null
+          purchase_cost_edited_at?: string | null
+          purchase_cost_edited_by?: string | null
           purchase_cost_source?: Database["public"]["Enums"]["purchase_cost_source"]
           quantity?: number
           raw_data?: Json | null
@@ -964,7 +988,12 @@ export type Database = {
       seed_store_defaults: { Args: { p_store_id: string }; Returns: undefined }
     }
     Enums: {
-      import_status: "uploaded" | "processing" | "completed" | "failed"
+      import_status:
+        | "uploaded"
+        | "processing"
+        | "completed"
+        | "failed"
+        | "rolled_back"
       inventory_source_type:
         | "manual"
         | "customer_purchase"
@@ -1121,7 +1150,13 @@ export type CompositeTypes<
 export const Constants = {
   public: {
     Enums: {
-      import_status: ["uploaded", "processing", "completed", "failed"],
+      import_status: [
+        "uploaded",
+        "processing",
+        "completed",
+        "failed",
+        "rolled_back",
+      ],
       inventory_source_type: [
         "manual",
         "customer_purchase",

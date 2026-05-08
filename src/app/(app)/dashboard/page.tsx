@@ -121,6 +121,84 @@ export default async function DashboardPage({
         />
       </div>
 
+      <div className="card-cream rounded-2xl p-4 lg:p-5">
+        <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
+          <div className="flex items-center gap-2">
+            <Boxes className="h-5 w-5 text-emerald-800" />
+            <h2 className="text-lg font-semibold text-forest">
+              Tổng quan hàng hóa
+            </h2>
+          </div>
+          <Link
+            href="/inventory"
+            className="text-xs text-emerald-900/65 hover:text-emerald-900 inline-flex items-center gap-1"
+          >
+            Quản lý tồn kho
+            <span aria-hidden>→</span>
+          </Link>
+        </div>
+        {data.inventorySnapshot.length === 0 ? (
+          <p className="text-sm text-emerald-900/55">
+            Chưa có dữ liệu tồn kho.
+          </p>
+        ) : (
+          <GoodsOverviewTable
+            inventory={data.inventorySnapshot.map((it) => {
+              const totalAmount =
+                it.average_unit_cost === null
+                  ? null
+                  : it.average_unit_cost * it.quantity;
+              return {
+                ...it,
+                totalAmountLabel:
+                  totalAmount === null ? "—" : formatVND(totalAmount),
+                averageLabel:
+                  it.average_unit_cost === null
+                    ? "—"
+                    : `${formatVND(it.average_unit_cost)} / ${it.qty_unit}`,
+              };
+            })}
+            sales={data.salesByCategory.map((it) => ({
+              ...it,
+              totalAmountLabel: formatVND(it.amount),
+              averageLabel:
+                it.quantity > 0
+                  ? `${formatVND(it.amount / it.quantity)} / ${it.qty_unit}`
+                  : "—",
+            }))}
+            purchases={data.purchasesByCategory.map((it) => ({
+              ...it,
+              totalAmountLabel: formatVND(it.amount),
+              averageLabel:
+                it.quantity > 0
+                  ? `${formatVND(it.amount / it.quantity)} / ${it.qty_unit}`
+                  : "—",
+            }))}
+          />
+        )}
+        {(data.inventoryAlerts.missingCost > 0 ||
+          data.inventoryAlerts.lowStock > 0) && (
+          <div className="mt-3 flex flex-wrap gap-2 text-[11px]">
+            {data.inventoryAlerts.missingCost > 0 && (
+              <Link
+                href="/inventory?missing_cost=1"
+                className="rounded-full bg-amber-100 px-2 py-0.5 text-amber-900 ring-1 ring-amber-300/60 hover:bg-amber-200"
+              >
+                {data.inventoryAlerts.missingCost} hàng thiếu giá mua
+              </Link>
+            )}
+            {data.inventoryAlerts.lowStock > 0 && (
+              <Link
+                href="/inventory?low_stock=1"
+                className="rounded-full bg-rose-100 px-2 py-0.5 text-rose-900 ring-1 ring-rose-300/60 hover:bg-rose-200"
+              >
+                {data.inventoryAlerts.lowStock} hàng tồn thấp
+              </Link>
+            )}
+          </div>
+        )}
+      </div>
+
       {/* Charts row */}
       <div className="grid grid-cols-1 gap-4 xl:grid-cols-3">
         <div className="card-cream rounded-2xl p-4 lg:p-5 xl:col-span-1">
@@ -247,7 +325,7 @@ export default async function DashboardPage({
           )}
         </div>
 
-        {/* Action items + Inventory snapshot stacked */}
+        {/* Action items */}
         <div className="xl:col-span-3 space-y-4">
           <div className="card-cream rounded-2xl p-4 lg:p-5">
             <div className="flex items-center gap-2 mb-3">
@@ -308,70 +386,6 @@ export default async function DashboardPage({
                 Xem toàn bộ trang Cần xử lý →
               </a>
             </div>
-          </div>
-
-          <div className="card-cream rounded-2xl p-4 lg:p-5">
-            <div className="flex items-center justify-between mb-3">
-              <div className="flex items-center gap-2">
-                <Boxes className="h-4 w-4 text-emerald-800" />
-                <h2 className="text-base font-semibold text-forest">
-                  Tồn kho hiện tại
-                </h2>
-              </div>
-              <Link
-                href="/inventory"
-                className="text-xs text-emerald-900/65 hover:text-emerald-900 inline-flex items-center gap-1"
-              >
-                Quản lý tồn kho
-                <span aria-hidden>→</span>
-              </Link>
-            </div>
-            {data.inventorySnapshot.length === 0 ? (
-              <p className="text-sm text-emerald-900/55">
-                Chưa có dữ liệu tồn kho.
-              </p>
-            ) : (
-              <div className="grid grid-cols-3 gap-2">
-                {data.inventorySnapshot.map((it) => (
-                  <div
-                    key={it.category}
-                    className="rounded-xl bg-amber-50/70 ring-1 ring-amber-300/40 p-3 text-center"
-                  >
-                    <div className="text-[11px] text-emerald-900/60">
-                      {it.category}
-                    </div>
-                    <div className="mt-1 text-base font-semibold text-gold">
-                      {formatNumber(it.quantity, 2)}{" "}
-                      <span className="text-xs">{it.qty_unit}</span>
-                    </div>
-                    <div className="text-[10px] text-emerald-900/50 mt-0.5">
-                      ≈ {formatNumber(it.weight_kg, 2)} kg
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-            {(data.inventoryAlerts.missingCost > 0 ||
-              data.inventoryAlerts.lowStock > 0) && (
-              <div className="mt-3 flex flex-wrap gap-2 text-[11px]">
-                {data.inventoryAlerts.missingCost > 0 && (
-                  <Link
-                    href="/inventory?missing_cost=1"
-                    className="rounded-full bg-amber-100 px-2 py-0.5 text-amber-900 ring-1 ring-amber-300/60 hover:bg-amber-200"
-                  >
-                    {data.inventoryAlerts.missingCost} hàng thiếu giá mua
-                  </Link>
-                )}
-                {data.inventoryAlerts.lowStock > 0 && (
-                  <Link
-                    href="/inventory?low_stock=1"
-                    className="rounded-full bg-rose-100 px-2 py-0.5 text-rose-900 ring-1 ring-rose-300/60 hover:bg-rose-200"
-                  >
-                    {data.inventoryAlerts.lowStock} hàng tồn thấp
-                  </Link>
-                )}
-              </div>
-            )}
           </div>
         </div>
 
@@ -551,6 +565,114 @@ export default async function DashboardPage({
             </table>
           </div>
         )}
+      </div>
+    </div>
+  );
+}
+
+type GoodsOverviewItem = {
+  category: string;
+  qty_unit: string;
+  quantity: number;
+  totalAmountLabel: string;
+  averageLabel: string;
+};
+
+function GoodsOverviewTable({
+  inventory,
+  sales,
+  purchases,
+}: {
+  inventory: GoodsOverviewItem[];
+  sales: GoodsOverviewItem[];
+  purchases: GoodsOverviewItem[];
+}) {
+  const categories = inventory.map((item) => item.category);
+  const findItem = (items: GoodsOverviewItem[], category: string) =>
+    items.find((item) => item.category === category);
+
+  const sections = [
+    { label: "Tồn kho", items: inventory },
+    { label: "Mua từ khách", items: purchases },
+    { label: "Bán hàng", items: sales },
+  ];
+
+  return (
+    <div className="grid grid-cols-1 gap-3 lg:grid-cols-3">
+      {categories.map((category) => {
+        const isSilver = category === "Bạc";
+        return (
+          <section
+            key={category}
+            className="overflow-hidden rounded-2xl bg-white/70 ring-1 ring-amber-300/45 shadow-sm"
+          >
+            <div className="border-b border-amber-300/35 bg-gradient-to-r from-amber-50/90 to-white px-4 py-3">
+              <h3
+                className={
+                  isSilver
+                    ? "text-base font-bold text-slate-500"
+                    : "text-base font-bold text-gold"
+                }
+              >
+                {category}
+              </h3>
+            </div>
+            <div className="divide-y divide-amber-200/60 p-3">
+              {sections.map((section) => {
+                const item = findItem(section.items, category);
+                if (!item) return null;
+                return (
+                  <div key={section.label} className="py-2 first:pt-0 last:pb-0">
+                    <div className="mb-1.5 text-xs font-semibold text-emerald-900/70">
+                      {section.label}
+                    </div>
+                    <div className="grid grid-cols-3 overflow-hidden rounded-xl border border-amber-300/45 bg-amber-50/35">
+                      <MetricBox
+                        label="Tổng KL"
+                        value={formatNumber(item.quantity, 2)}
+                        unit="chỉ"
+                      />
+                      <MetricBox label="Tổng tiền" value={item.totalAmountLabel} />
+                      <MetricBox label="Đơn giá BQ" value={item.averageLabel} strong />
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </section>
+        );
+      })}
+    </div>
+  );
+}
+
+function MetricBox({
+  label,
+  value,
+  unit,
+  strong = false,
+}: {
+  label: string;
+  value: string;
+  unit?: string;
+  strong?: boolean;
+}) {
+  return (
+    <div className="border-r border-amber-300/45 px-2.5 py-2 last:border-r-0">
+      <div className="text-[10px] uppercase tracking-wide text-emerald-900/45">
+        {label}
+      </div>
+      <div
+        className={
+          unit
+            ? "mt-0.5 text-[13px] font-bold leading-tight text-gold"
+            : strong
+              ? "mt-0.5 text-[13px] font-bold leading-tight text-emerald-800"
+              : "mt-0.5 text-[13px] font-semibold leading-tight text-emerald-950"
+        }
+      >
+        {value}
+        {unit && <span className="ml-1 text-gold">{unit}</span>}
       </div>
     </div>
   );

@@ -185,3 +185,72 @@ export async function PATCH(
 
   return NextResponse.json({ item: after });
 }
+
+/**
+ * Permanently delete an inventory item that was created by mistake.
+ * Only admins can delete, and linked sales are blocked to avoid breaking tax
+ * calculations that already depend on this inventory item.
+ */
+export async function DELETE(
+  _request: Request,
+  { params }: { params: { id: string } }
+) {
+  const supabase = createClient();
+  const auth = await requireMember(supabase, ["admin"]);
+  if (!auth.ok) return auth.response;
+
+  const admin = createAdminClient();
+  const { data: existing } = await admin
+    .from("inventory_items")
+    .select("id, sku, name, store_id")
+    .eq("id", params.id)
+    .eq("store_id", auth.profile.store_id)
+    .maybeSingle();
+
+  if (!existing) {
+    return NextResponse.json({ error: "Không tìm thấy" }, { status: 404 });
+  }
+
+  const { count: linkedSalesCount, error: linkedErr } = await admin
+    .from("sales_transactions")
+    .select("id", { count: "exact", head: true })
+    .eq("linked_inventory_item_id", params.id);
+
+  if (linkedErr) {
+    return NextResponse.json({ error: linkedErr.message }, { status: 500 });
+  }
+
+  if ((linkedSalesCount ?? 0) > 0) {
+    return NextResponse.json(
+      {
+        error:
+          "Không thể xóa vì mặt hàng đã gắn với giao dịch bán. Hãy lưu trữ thay vì xóa.",
+      },
+      { status: 409 }
+    );
+  }
+
+  const { error: deleteErr } = await admin
+    .from("inventory_items")
+    .delete()
+    .eq("id", params.id)
+    .eq("store_id", auth.profile.store_id);
+
+  if (deleteErr) {
+    return NextResponse.json({ error: deleteErr.message }, { status: 500 });
+  }
+
+  await writeAuditLog(admin, {
+    store_id: auth.profile.store_id,
+    user_id: auth.profile.id,
+    action: "delete_inventory_item",
+    entity_type: "inventory_items",
+    entity_id: existing.id,
+    metadata: {
+      sku: existing.sku,
+      name: existing.name,
+    },
+  });
+
+  return NextResponse.json({ ok: true });
+}

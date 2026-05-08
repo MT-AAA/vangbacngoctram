@@ -23,6 +23,7 @@ type Props = {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   saleId: string;
+  saleIds?: string[];
   saleProductName: string | null;
   saleCategoryId: string | null;
   saleCategoryName: string | null;
@@ -33,6 +34,7 @@ export function InventoryPickerDialog({
   open,
   onOpenChange,
   saleId,
+  saleIds,
   saleProductName,
   saleCategoryId,
   saleCategoryName,
@@ -42,11 +44,13 @@ export function InventoryPickerDialog({
   const [loading, setLoading] = useState(false);
   const [linking, setLinking] = useState<string | null>(null);
   const [q, setQ] = useState("");
+  const targetSaleIds = saleIds?.length ? saleIds : saleId ? [saleId] : [];
+  const isBulk = targetSaleIds.length > 1;
 
   useEffect(() => {
     if (!open) return;
-    setQ(saleProductName ?? "");
-  }, [open, saleProductName]);
+    setQ(isBulk ? "" : (saleProductName ?? ""));
+  }, [open, saleProductName, isBulk]);
 
   useEffect(() => {
     if (!open) return;
@@ -79,40 +83,52 @@ export function InventoryPickerDialog({
   const handleLink = async (inventory: InventoryRow, override = false) => {
     setLinking(inventory.id);
     try {
-      const res = await fetch("/api/inventory/link-sale", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          sale_id: saleId,
-          inventory_item_id: inventory.id,
-          override_manual_cost: override,
-        }),
-      });
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok) {
-        if (data?.code === "CONFIRM_OVERWRITE_MANUAL_REQUIRED") {
-          if (
-            confirm(
-              "Giao dịch này đã có giá vốn nhập tay. Ghi đè bằng giá vốn từ tồn kho?"
-            )
-          ) {
-            return handleLink(inventory, true);
+      let successCount = 0;
+      let lastData: Record<string, unknown> = {};
+      for (const id of targetSaleIds) {
+        const res = await fetch("/api/inventory/link-sale", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            sale_id: id,
+            inventory_item_id: inventory.id,
+            override_manual_cost: override,
+          }),
+        });
+        const data = await res.json().catch(() => ({}));
+        lastData = data;
+        if (!res.ok) {
+          if (data?.code === "CONFIRM_OVERWRITE_MANUAL_REQUIRED") {
+            if (
+              confirm(
+                "Có giao dịch đã có giá vốn nhập tay. Ghi đè bằng giá vốn từ tồn kho?"
+              )
+            ) {
+              return handleLink(inventory, true);
+            }
+            return;
           }
+          toast.error("Không gắn được", {
+            description: data?.error ?? `HTTP ${res.status}`,
+          });
           return;
         }
-        toast.error("Không gắn được", {
-          description: data?.error ?? `HTTP ${res.status}`,
-        });
-        return;
+        successCount += 1;
       }
-      const warnings: string[] = data?.warnings ?? [];
+      const warnings = Array.isArray(lastData?.warnings)
+        ? (lastData.warnings as string[])
+        : [];
       toast.success(
-        `Đã gắn với mặt hàng tồn (giá vốn ${formatVND(Number(data?.cost ?? 0))})`,
+        isBulk
+          ? `Đã gắn tồn kho cho ${successCount} dòng`
+          : `Đã gắn với mặt hàng tồn (giá vốn ${formatVND(Number(lastData?.cost ?? 0))})`,
         {
           description:
             warnings.length > 0
               ? warnings.join("; ")
-              : `Tồn kho chuyển sang trạng thái: ${STATUS_LABELS[data?.new_inventory_status as keyof typeof STATUS_LABELS] ?? data?.new_inventory_status ?? "—"}`,
+              : isBulk
+                ? "Đã cập nhật giá vốn và tồn kho theo từng dòng đã chọn."
+                : `Tồn kho chuyển sang trạng thái: ${STATUS_LABELS[lastData?.new_inventory_status as keyof typeof STATUS_LABELS] ?? lastData?.new_inventory_status ?? "—"}`,
         }
       );
       onOpenChange(false);

@@ -9,7 +9,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { listUnclassified } from "@/lib/issues/queries";
+import { findUnclassifiedPage, listUnclassified } from "@/lib/issues/queries";
 import { UnclassifiedTable } from "@/components/issues/unclassified-table";
 
 export const dynamic = "force-dynamic";
@@ -17,7 +17,7 @@ export const dynamic = "force-dynamic";
 export default async function UnclassifiedIssuesPage({
   searchParams,
 }: {
-  searchParams: { page?: string };
+  searchParams: { page?: string; transactionId?: string };
 }) {
   const supabase = createClient();
   const {
@@ -32,7 +32,21 @@ export default async function UnclassifiedIssuesPage({
     .maybeSingle();
   const role = profile?.role ?? "viewer";
 
-  const page = Number.parseInt(searchParams.page ?? "0", 10) || 0;
+  const requestedPage = Number.parseInt(searchParams.page ?? "0", 10) || 0;
+  const transactionId = searchParams.transactionId?.trim() || undefined;
+  let page = requestedPage;
+  let highlightId: string | undefined;
+  if (transactionId) {
+    const computed = await findUnclassifiedPage(supabase, {
+      transactionId,
+      pageSize: 50,
+    });
+    if (computed !== null) {
+      page = computed;
+      highlightId = transactionId;
+    }
+  }
+
   const [{ rows, total }, { data: categories }] = await Promise.all([
     listUnclassified(supabase, { page, pageSize: 50 }),
     supabase
@@ -87,6 +101,7 @@ export default async function UnclassifiedIssuesPage({
               pageSize={50}
               categories={categories ?? []}
               canCreateRule={role === "admin"}
+              highlightId={highlightId}
             />
           </CardContent>
         </Card>

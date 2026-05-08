@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState, useTransition } from "react";
+import { useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import {
   Table,
@@ -35,6 +35,7 @@ type Props = {
   pageSize: number;
   categories: Category[];
   canCreateRule: boolean;
+  highlightId?: string;
 };
 
 export function UnclassifiedTable({
@@ -44,6 +45,7 @@ export function UnclassifiedTable({
   pageSize,
   categories,
   canCreateRule,
+  highlightId,
 }: Props) {
   const router = useRouter();
   const [selected, setSelected] = useState<Set<string>>(() => new Set());
@@ -52,6 +54,15 @@ export function UnclassifiedTable({
   const [ruleKeyword, setRuleKeyword] = useState("");
   const [reclassify, setReclassify] = useState(true);
   const [pending, startTransition] = useTransition();
+  const highlightRef = useRef<HTMLTableRowElement | null>(null);
+
+  useEffect(() => {
+    if (!highlightId) return;
+    const node = highlightRef.current;
+    if (node) {
+      node.scrollIntoView({ behavior: "smooth", block: "center" });
+    }
+  }, [highlightId, rows]);
 
   const allChecked = rows.length > 0 && rows.every((r) => selected.has(r.id));
   const selectedIds = useMemo(() => Array.from(selected), [selected]);
@@ -309,51 +320,58 @@ export function UnclassifiedTable({
           </TableRow>
         </TableHeader>
         <TableBody>
-          {rows.map((r) => (
-            <TableRow key={r.id}>
-              <TableCell>
-                <input
-                  type="checkbox"
-                  aria-label={`Chọn ${r.product_name_raw}`}
-                  checked={selected.has(r.id)}
-                  onChange={() => toggle(r.id)}
-                />
-              </TableCell>
-              <TableCell className="text-xs">
-                {formatVNDate(r.sale_date)}
-              </TableCell>
-              <TableCell className="font-mono text-xs">
-                {r.invoice_series ? `${r.invoice_series}/` : ""}
-                {r.invoice_no ?? "—"}
-              </TableCell>
-              <TableCell className="max-w-[280px]">
-                <div className="truncate font-medium">{r.product_name_raw}</div>
-              </TableCell>
-              <TableCell className="text-right">
-                {formatNumber(r.quantity, 2)} {r.unit ?? ""}
-              </TableCell>
-              <TableCell className="text-right font-medium">
-                {formatVND(r.total_amount)}
-              </TableCell>
-              <TableCell>
-                <Badge variant="warning">Chưa phân loại</Badge>
-              </TableCell>
-              <TableCell className="text-right">
-                {canCreateRule ? (
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={() => fillRuleFromRow(r)}
-                  >
-                    <Wand2 className="mr-1 h-3.5 w-3.5" />
-                    Dùng tên này
-                  </Button>
-                ) : (
-                  <span className="text-xs text-muted-foreground">—</span>
-                )}
-              </TableCell>
-            </TableRow>
-          ))}
+          {rows.map((r) => {
+            const isHighlighted = highlightId === r.id;
+            return (
+              <TableRow
+                key={r.id}
+                ref={isHighlighted ? highlightRef : undefined}
+                className={isHighlighted ? "bg-amber-50 ring-2 ring-amber-400" : undefined}
+              >
+                <TableCell>
+                  <input
+                    type="checkbox"
+                    aria-label={`Chọn ${r.product_name_raw}`}
+                    checked={selected.has(r.id)}
+                    onChange={() => toggle(r.id)}
+                  />
+                </TableCell>
+                <TableCell className="text-xs">
+                  {formatVNDate(r.sale_date)}
+                </TableCell>
+                <TableCell className="font-mono text-xs">
+                  {r.invoice_series ? `${r.invoice_series}/` : ""}
+                  {r.invoice_no ?? "—"}
+                </TableCell>
+                <TableCell className="max-w-[280px]">
+                  <div className="truncate font-medium">{r.product_name_raw}</div>
+                </TableCell>
+                <TableCell className="text-right">
+                  {formatNumber(r.quantity, 2)} {r.unit ?? ""}
+                </TableCell>
+                <TableCell className="text-right font-medium">
+                  {formatVND(r.total_amount)}
+                </TableCell>
+                <TableCell>
+                  <Badge variant="warning">Chưa phân loại</Badge>
+                </TableCell>
+                <TableCell className="text-right">
+                  {canCreateRule ? (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => fillRuleFromRow(r)}
+                    >
+                      <Wand2 className="mr-1 h-3.5 w-3.5" />
+                      Dùng tên này
+                    </Button>
+                  ) : (
+                    <span className="text-xs text-muted-foreground">—</span>
+                  )}
+                </TableCell>
+              </TableRow>
+            );
+          })}
         </TableBody>
       </Table>
 

@@ -29,6 +29,7 @@ import {
   type Purity,
 } from "@/lib/customer-purchases/schema";
 import {
+  formatMoneyInput,
   formatVNDate,
   formatNumberForInput,
   parseVietnameseNumber,
@@ -162,14 +163,14 @@ export function CustomerPurchaseForm({
     setForm(editing ? hydrateForm(editing) : emptyForm());
   }, [open, editing]);
 
-  // Auto-calc total_buy_amount from quantity * unit_buy_price unless user
+  // Auto-calc total_buy_amount from tax weight * unit_buy_price unless user
   // explicitly typed in the total field.
   const computedTotal = useMemo(() => {
-    const qty = parseVietnameseNumber(form.quantity);
+    const weight = parseVietnameseNumber(form.weight);
     const unit = parseVietnameseNumber(form.unit_buy_price);
-    if (qty === null || unit === null) return null;
-    return qty * unit;
-  }, [form.quantity, form.unit_buy_price]);
+    if (weight === null || unit === null) return null;
+    return weight * unit;
+  }, [form.weight, form.unit_buy_price]);
 
   useEffect(() => {
     if (form.total_overridden) return;
@@ -177,7 +178,10 @@ export function CustomerPurchaseForm({
     setForm((f) =>
       f.total_overridden
         ? f
-        : { ...f, total_buy_amount: String(Math.round(computedTotal)) }
+        : {
+            ...f,
+            total_buy_amount: formatMoneyInput(Math.round(computedTotal)),
+          }
     );
   }, [computedTotal, form.total_overridden]);
 
@@ -207,17 +211,18 @@ export function CustomerPurchaseForm({
       toast.error("Đơn giá mua không hợp lệ");
       return;
     }
-    const totalBuyAmount =
-      parseVietnameseNumber(form.total_buy_amount) ?? quantity * unitBuyPrice;
-    if (totalBuyAmount < 0) {
-      toast.error("Thành tiền không hợp lệ");
-      return;
-    }
     const weight = form.weight.trim()
       ? parseVietnameseNumber(form.weight)
       : null;
     if (weight !== null && (Number.isNaN(weight) || weight < 0)) {
       toast.error("Trọng lượng không hợp lệ");
+      return;
+    }
+    const totalBuyAmount =
+      parseVietnameseNumber(form.total_buy_amount) ??
+      (weight !== null ? weight : quantity) * unitBuyPrice;
+    if (totalBuyAmount < 0) {
+      toast.error("Thành tiền không hợp lệ");
       return;
     }
 
@@ -353,7 +358,7 @@ export function CustomerPurchaseForm({
           </div>
 
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
-            <div className="space-y-1.5">
+            <div className="space-y-2">
               <Label>Phân loại</Label>
               <Select
                 value={form.product_category_id}
@@ -372,7 +377,7 @@ export function CustomerPurchaseForm({
                 </SelectContent>
               </Select>
             </div>
-            <div className="space-y-1.5">
+            <div className="space-y-2">
               <Label>Tuổi vàng / hàm lượng</Label>
               <Select
                 value={form.purity}
@@ -391,7 +396,7 @@ export function CustomerPurchaseForm({
                 </SelectContent>
               </Select>
             </div>
-            <div className="space-y-1.5">
+            <div className="space-y-2">
               <Label>Đơn vị</Label>
               <Select
                 value={form.unit}
@@ -409,32 +414,34 @@ export function CustomerPurchaseForm({
                 </SelectContent>
               </Select>
             </div>
-            <div className="space-y-1.5">
-              <Label>Số lượng *</Label>
+            <div className="space-y-2">
+              <Label className="flex min-h-5 items-center">Số lượng món *</Label>
               <Input
                 type="text"
                 inputMode="decimal"
                 value={form.quantity}
                 onChange={(e) => update("quantity", e.target.value)}
-                placeholder="VD: 1,5"
+                placeholder="VD: 1"
                 required
               />
+              <p className="min-h-10 text-xs leading-5 text-muted-foreground">Số món/số dòng, không dùng thay trọng lượng tính thuế.</p>
             </div>
           </div>
 
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
-            <div className="space-y-1.5">
-              <Label>Trọng lượng</Label>
+            <div className="space-y-2">
+              <Label className="flex min-h-5 items-center">Trọng lượng tính thuế</Label>
               <Input
                 type="text"
                 inputMode="decimal"
                 value={form.weight}
                 onChange={(e) => update("weight", e.target.value)}
-                placeholder="VD: 3,75"
+                placeholder="VD: 1,5"
               />
+              <p className="min-h-10 text-xs leading-5 text-muted-foreground">Nhập số chỉ thực tế. Ví dụ 1,5 chỉ thì nhập 1,5.</p>
             </div>
-            <div className="space-y-1.5">
-              <Label>ĐV trọng lượng</Label>
+            <div className="space-y-2">
+              <Label className="flex min-h-5 items-center">ĐV trọng lượng</Label>
               <Select
                 value={form.weight_unit}
                 onValueChange={(v) => update("weight_unit", v)}
@@ -449,19 +456,21 @@ export function CustomerPurchaseForm({
                 </SelectContent>
               </Select>
             </div>
-            <div className="space-y-1.5">
-              <Label>Đơn giá mua *</Label>
+            <div className="space-y-2">
+              <Label className="flex min-h-5 items-center">Đơn giá mua / chỉ *</Label>
               <Input
                 type="text"
                 inputMode="decimal"
                 value={form.unit_buy_price}
-                onChange={(e) => update("unit_buy_price", e.target.value)}
+                onChange={(e) =>
+                  update("unit_buy_price", formatMoneyInput(e.target.value))
+                }
                 placeholder="VD: 6.500.000"
                 required
               />
             </div>
-            <div className="space-y-1.5">
-              <Label>Thành tiền *</Label>
+            <div className="space-y-2">
+              <Label className="flex min-h-5 items-center">Thành tiền *</Label>
               <Input
                 type="text"
                 inputMode="decimal"
@@ -469,14 +478,14 @@ export function CustomerPurchaseForm({
                 onChange={(e) => {
                   setForm((f) => ({
                     ...f,
-                    total_buy_amount: e.target.value,
+                    total_buy_amount: formatMoneyInput(e.target.value),
                     total_overridden: true,
                   }));
                 }}
-                placeholder="Tự tính = SL × Đơn giá"
+                placeholder="Tự tính = Trọng lượng × Đơn giá"
               />
               {!form.total_overridden && computedTotal !== null && (
-                <p className="text-xs text-muted-foreground">Tự tính theo SL × Đơn giá</p>
+                <p className="min-h-5 text-xs leading-5 text-muted-foreground">Tự tính theo trọng lượng × đơn giá</p>
               )}
               {form.total_overridden && (
                 <button
@@ -489,7 +498,7 @@ export function CustomerPurchaseForm({
                       total_buy_amount:
                         computedTotal === null
                           ? ""
-                          : String(Math.round(computedTotal)),
+                          : formatMoneyInput(Math.round(computedTotal)),
                     }))
                   }
                 >
@@ -538,7 +547,7 @@ export function CustomerPurchaseForm({
           </div>
 
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-            <div className="space-y-1.5">
+            <div className="space-y-2">
               <Label>Ảnh giao dịch (URL)</Label>
               <Input
                 value={form.image_url}
@@ -546,7 +555,7 @@ export function CustomerPurchaseForm({
                 placeholder="https://..."
               />
             </div>
-            <div className="space-y-1.5">
+            <div className="space-y-2">
               <Label>Tài liệu đính kèm (URL)</Label>
               <Input
                 value={form.attachment_url}

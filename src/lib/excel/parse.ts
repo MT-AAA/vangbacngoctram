@@ -56,6 +56,8 @@ export type ParsedRow = {
   unit: string | null;
   quantity: number | null;
   unit_price: number | null;
+  weight: number | null;
+  weight_unit: string | null;
 
   // Money
   currency: string | null;
@@ -295,6 +297,17 @@ function toNumber(value: unknown): number | null {
   return parseVietnameseNumber(String(value));
 }
 
+function quantityToChi(quantity: number | null, unit: string | null): number | null {
+  if (quantity === null || quantity === undefined || !Number.isFinite(quantity)) {
+    return null;
+  }
+  const normalized = normalize(unit);
+  if (!normalized || normalized === "chỉ" || normalized === "chi") return quantity;
+  if (normalized === "lượng" || normalized === "luong") return quantity * 10;
+  if (normalized === "gram" || normalized === "g") return quantity / 3.75;
+  return null;
+}
+
 function toString_(value: unknown): string | null {
   if (value === null || value === undefined) return null;
   const s = typeof value === "string" ? value : String(value);
@@ -458,6 +471,8 @@ export async function parseSalesExcel(buffer: ArrayBuffer): Promise<ParseResult>
       unit: null,
       quantity: null,
       unit_price: null,
+      weight: null,
+      weight_unit: null,
       currency: null,
       currency_rate: null,
       sales_amount_before_tax: null,
@@ -570,6 +585,8 @@ export async function parseSalesExcel(buffer: ArrayBuffer): Promise<ParseResult>
     }
 
     if (row.quantity === null) row.quantity = 1;
+    row.weight = quantityToChi(row.quantity, row.unit);
+    row.weight_unit = row.weight === null ? null : "chỉ";
 
     if (!row.product_name_raw) errors.push("Thiếu tên sản phẩm");
     if (!row.invoice_date) errors.push("Thiếu ngày lập hóa đơn");

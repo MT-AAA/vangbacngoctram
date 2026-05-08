@@ -22,6 +22,9 @@ function fakeClient<T>(rowsByTable: Record<string, T[]>) {
         not() {
           return builder;
         },
+        neq() {
+          return builder;
+        },
         order() {
           return builder;
         },
