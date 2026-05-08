@@ -20,10 +20,15 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { findDuplicateGroups } from "@/lib/issues/queries";
 import { formatNumber, formatVND } from "@/lib/utils";
+import { DuplicateActions } from "@/components/issues/duplicate-actions";
 
 export const dynamic = "force-dynamic";
 
-export default async function DuplicateIssuesPage() {
+export default async function DuplicateIssuesPage({
+  searchParams,
+}: {
+  searchParams: { transactionId?: string };
+}) {
   const supabase = createClient();
   const {
     data: { user },
@@ -31,6 +36,10 @@ export default async function DuplicateIssuesPage() {
   if (!user) redirect("/login");
 
   const { groups } = await findDuplicateGroups(supabase, { limit: 1500 });
+  const transactionId = searchParams.transactionId?.trim() || undefined;
+  const highlightedGroup = transactionId
+    ? groups.find((g) => g.row_ids.includes(transactionId))
+    : undefined;
 
   return (
     <div className="space-y-6">
@@ -83,11 +92,21 @@ export default async function DuplicateIssuesPage() {
                   <TableHead className="text-right">Đơn giá</TableHead>
                   <TableHead className="text-right">Tổng nhóm</TableHead>
                   <TableHead className="text-right w-20">Số dòng</TableHead>
+                  <TableHead className="text-right w-40">Thao tác</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {groups.map((g) => (
-                  <TableRow key={g.group_key}>
+                {groups.map((g) => {
+                  const isHighlighted = highlightedGroup?.group_key === g.group_key;
+                  const rowAnchorId = transactionId && g.row_ids.includes(transactionId)
+                    ? `tx-${transactionId}`
+                    : undefined;
+                  return (
+                    <TableRow
+                      key={g.group_key}
+                      id={rowAnchorId}
+                      className={isHighlighted ? "bg-amber-50 ring-2 ring-amber-400" : undefined}
+                    >
                     <TableCell>
                       {g.kind === "duplicate_within_invoice" ? (
                         <Badge variant="warning">Trùng trên hóa đơn</Badge>
@@ -113,8 +132,17 @@ export default async function DuplicateIssuesPage() {
                       {formatVND(g.total_amount)}
                     </TableCell>
                     <TableCell className="text-right">{g.count}</TableCell>
-                  </TableRow>
-                ))}
+                    <TableCell className="text-right">
+                      <DuplicateActions
+                        invoiceNo={g.invoice_no}
+                        rowCount={g.count}
+                        totalAmount={g.total_amount}
+                        rowIds={g.row_ids}
+                      />
+                    </TableCell>
+                    </TableRow>
+                  );
+                })}
               </TableBody>
             </Table>
           </CardContent>

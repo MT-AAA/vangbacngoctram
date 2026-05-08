@@ -94,10 +94,9 @@ export async function loadAvgSellingPrice(
     existing.total_quantity = round2(
       existing.total_quantity + Number(r.quantity ?? 0)
     );
-    const totalRowWeight =
-      Number(r.quantity ?? 0) * Number(r.weight ?? 0);
+    const totalRowWeight = Number(r.weight ?? r.quantity ?? 0);
     existing.total_weight_chi = round2(
-      existing.total_weight_chi + toChi(totalRowWeight, r.weight_unit ?? null)
+      existing.total_weight_chi + toChi(totalRowWeight, r.weight_unit ?? "chỉ")
     );
     existing.total_sales_amount = round2(
       existing.total_sales_amount + Number(r.total_amount ?? 0)

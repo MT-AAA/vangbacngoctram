@@ -11,6 +11,7 @@ type Props = {
   totalPages: number;
   totalCount: number;
   pageSize: number;
+  compact?: boolean;
 };
 
 /**
@@ -23,6 +24,7 @@ export function SalesPagination({
   totalPages,
   totalCount,
   pageSize,
+  compact = false,
 }: Props) {
   const router = useRouter();
   const pathname = usePathname();
@@ -35,7 +37,7 @@ export function SalesPagination({
 
   if (totalPages <= 1) {
     return (
-      <div className="text-xs text-muted-foreground">
+      <div className={compact ? "hidden" : "text-xs text-muted-foreground"}>
         Hiển thị {totalCount === 0 ? 0 : 1}–{totalCount} trên {totalCount} giao
         dịch
       </div>
@@ -62,13 +64,19 @@ export function SalesPagination({
 
   return (
     <nav
-      className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between"
+      className={
+        compact
+          ? "flex justify-end"
+          : "flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between"
+      }
       aria-label="Phân trang giao dịch"
     >
-      <div className="text-xs text-muted-foreground">
-        Hiển thị {fromRow.toLocaleString("vi-VN")}–{toRow.toLocaleString("vi-VN")}{" "}
-        trên {totalCount.toLocaleString("vi-VN")} giao dịch
-      </div>
+      {!compact && (
+        <div className="text-xs text-muted-foreground">
+          Hiển thị {fromRow.toLocaleString("vi-VN")}–{toRow.toLocaleString("vi-VN")}{" "}
+          trên {totalCount.toLocaleString("vi-VN")} giao dịch
+        </div>
+      )}
       <div className="flex flex-wrap items-center justify-center gap-1.5 sm:justify-end">
         <Button
           variant="outline"

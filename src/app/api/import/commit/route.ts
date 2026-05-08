@@ -136,6 +136,8 @@ export async function POST(request: Request) {
         unit: r.unit,
         quantity: r.quantity ?? 1,
         unit_price: r.unit_price ?? 0,
+        weight: r.weight,
+        weight_unit: r.weight_unit,
 
         // Amounts
         currency: r.currency,

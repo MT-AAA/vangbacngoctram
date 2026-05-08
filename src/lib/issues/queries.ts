@@ -48,11 +48,16 @@ export type SaleIssueRow = Pick<
 };
 
 const SALE_LIST_SELECT =
-  "id, sale_date, invoice_no, invoice_series, invoice_key, product_name_raw, product_category_id, quantity, unit, unit_price, total_amount, purchase_cost_amount, purchase_cost_source, tax_calculation_status, is_intentionally_ignored, ignored_reason, customer_name, category:product_categories(name, code)";
+  "id, sale_date, invoice_no, invoice_series, invoice_key, product_name_raw, product_category_id, quantity, unit, unit_price, total_amount, purchase_cost_amount, purchase_cost_source, tax_calculation_status, is_intentionally_ignored, ignored_reason, customer_name, category:product_categories!inner(name, code)";
 
 export async function listMissingCost(
   client: DBClient,
-  opts: { page?: number; pageSize?: number; includeIgnored?: boolean } = {}
+  opts: {
+    page?: number;
+    pageSize?: number;
+    includeIgnored?: boolean;
+    categoryCode?: string | null;
+  } = {}
 ): Promise<ListPage<SaleIssueRow>> {
   const page = Math.max(0, opts.page ?? 0);
   const pageSize = opts.pageSize ?? DEFAULT_PAGE_SIZE;
@@ -66,6 +71,10 @@ export async function listMissingCost(
 
   if (!opts.includeIgnored) {
     query = query.eq("is_intentionally_ignored", false);
+  }
+
+  if (opts.categoryCode) {
+    query = query.eq("category.code", opts.categoryCode);
   }
 
   const { data, count } = await query
@@ -159,6 +168,28 @@ export async function listUnclassified(
     .range(from, to);
 
   return { rows: (data ?? []) as SaleIssueRow[], total: count ?? 0 };
+}
+
+export async function findUnclassifiedPage(
+  client: DBClient,
+  opts: { transactionId: string; pageSize?: number }
+): Promise<number | null> {
+  const pageSize = opts.pageSize ?? DEFAULT_PAGE_SIZE;
+  const { data: target } = await client
+    .from("sales_transactions")
+    .select("id, sale_date, product_category_id")
+    .eq("id", opts.transactionId)
+    .maybeSingle();
+
+  if (!target || target.product_category_id !== null) return null;
+
+  const { count } = await client
+    .from("sales_transactions")
+    .select("id", { count: "exact", head: true })
+    .is("product_category_id", null)
+    .gt("sale_date", target.sale_date);
+
+  return Math.floor((count ?? 0) / pageSize);
 }
 
 export async function listEstimated(
@@ -288,6 +319,7 @@ export async function findDuplicateGroups(
       "id, invoice_key, invoice_no, product_name_raw, unit, quantity, unit_price, total_amount"
     )
     .not("invoice_key", "is", null)
+    .neq("duplicate_resolution_status", "merged")
     .order("invoice_key", { ascending: true })
     .order("product_name_raw", { ascending: true })
     .limit(limit);

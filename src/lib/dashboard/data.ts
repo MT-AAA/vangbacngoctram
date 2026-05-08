@@ -239,6 +239,21 @@ export type DashboardSummary = {
     qty_unit: string;
     quantity: number;
     weight_kg: number;
+    average_unit_cost: number | null;
+  }>;
+  salesByCategory: Array<{
+    category: string;
+    qty_unit: string;
+    quantity: number;
+    weight_kg: number;
+    amount: number;
+  }>;
+  purchasesByCategory: Array<{
+    category: string;
+    qty_unit: string;
+    quantity: number;
+    weight_kg: number;
+    amount: number;
   }>;
   inventoryAlerts: {
     missingCost: number;
@@ -280,7 +295,7 @@ export async function loadDashboard(
     supabase
       .from("sales_transactions")
       .select(
-        "sale_date, total_amount, purchase_cost_amount, value_added_amount, product_category_id"
+        "sale_date, total_amount, purchase_cost_amount, value_added_amount, product_category_id, quantity, weight, category:product_categories(name, code)"
       )
       .gte("sale_date", fromISO)
       .lte("sale_date", toISOEnd),
@@ -466,19 +481,21 @@ export async function loadDashboard(
   // columns when present, falling back to legacy `quantity_on_hand` / `weight`
   // for rows that haven't been migrated yet. Also derives the alert counters
   // for the dashboard tile.
-  type InvAgg = { qty: number; weight: number; unit: string };
+  type InvAgg = { qty: number; weight: number; value: number; unit: string };
   const invMap = new Map<string, InvAgg>();
   let missingCostAlert = 0;
   let lowStockAlert = 0;
   for (const it of inventory ?? []) {
     const c = Array.isArray(it.category) ? it.category[0] : it.category;
     const name = c?.name ?? "Khác";
-    const unit = c?.code === "BAC" ? "lượng" : "chỉ";
-    const existing = invMap.get(name) ?? { qty: 0, weight: 0, unit };
+    const unit = "chỉ";
+    const existing = invMap.get(name) ?? { qty: 0, weight: 0, value: 0, unit };
     const qty = Number(it.current_quantity ?? it.quantity_on_hand ?? 0);
     const weight = Number(it.current_weight ?? it.weight ?? 0);
+    const value = Number(it.purchase_cost_amount ?? 0);
     existing.qty += qty;
     existing.weight += weight;
+    existing.value += value;
     existing.unit = unit;
     invMap.set(name, existing);
 
@@ -500,8 +517,69 @@ export async function loadDashboard(
         qty_unit: v.unit,
         quantity: v.weight,
         weight_kg: (v.weight * gramsPerUnit) / 1000,
+        average_unit_cost: v.weight > 0 ? v.value / v.weight : null,
       };
     });
+
+  type MovementAgg = { quantity: number; weight: number; amount: number; unit: string };
+  const toMovementRows = (map: Map<string, MovementAgg>) =>
+    order.map((category) => {
+      const v = map.get(category) ?? {
+        quantity: 0,
+        weight: 0,
+        amount: 0,
+        unit: "chỉ",
+      };
+      const gramsPerUnit = v.unit === "lượng" ? 37.5 : 3.75;
+      return {
+        category,
+        qty_unit: v.unit,
+        quantity: v.weight || v.quantity,
+        weight_kg: ((v.weight || v.quantity) * gramsPerUnit) / 1000,
+        amount: v.amount,
+      };
+    });
+
+  const salesMovementMap = new Map<string, MovementAgg>();
+  for (const t of txns ?? []) {
+    const c = Array.isArray(t.category) ? t.category[0] : t.category;
+    const category = c?.name;
+    if (!category || !order.includes(category)) continue;
+    const unit = "chỉ";
+    const existing = salesMovementMap.get(category) ?? {
+      quantity: 0,
+      weight: 0,
+      amount: 0,
+      unit,
+    };
+    existing.quantity += Number(t.quantity ?? 0);
+    existing.weight += Number(t.weight ?? t.quantity ?? 0);
+    existing.amount += Number(t.total_amount ?? 0);
+    existing.unit = unit;
+    salesMovementMap.set(category, existing);
+  }
+
+  const purchaseMovementMap = new Map<string, MovementAgg>();
+  for (const r of customerPurchases.rangeRows ?? []) {
+    const c = Array.isArray(r.category) ? r.category[0] : r.category;
+    const category = c?.name;
+    if (!category || !order.includes(category)) continue;
+    const unit = "chỉ";
+    const existing = purchaseMovementMap.get(category) ?? {
+      quantity: 0,
+      weight: 0,
+      amount: 0,
+      unit,
+    };
+    existing.quantity += Number(r.quantity ?? 0);
+    existing.weight += Number(r.weight ?? r.quantity ?? 0);
+    existing.amount += Number(r.total_amount ?? 0);
+    existing.unit = unit;
+    purchaseMovementMap.set(category, existing);
+  }
+
+  const salesByCategory = toMovementRows(salesMovementMap);
+  const purchasesByCategory = toMovementRows(purchaseMovementMap);
 
   return {
     range,
@@ -536,6 +614,8 @@ export async function loadDashboard(
       error_rows: i.error_rows ?? 0,
     })),
     inventorySnapshot,
+    salesByCategory,
+    purchasesByCategory,
     inventoryAlerts: {
       missingCost: missingCostAlert,
       lowStock: lowStockAlert,

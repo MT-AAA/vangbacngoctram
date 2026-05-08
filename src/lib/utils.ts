@@ -62,6 +62,13 @@ export function formatNumberForInput(
   }).format(value);
 }
 
+export function formatMoneyInput(value: string | number | null | undefined): string {
+  if (value === null || value === undefined) return "";
+  const digits = String(value).replace(/\D/g, "");
+  if (!digits) return "";
+  return Number(digits).toLocaleString("vi-VN");
+}
+
 export function parseVietnameseNumber(input: string | number | null | undefined): number | null {
   if (input === null || input === undefined) return null;
   if (typeof input === "number") return Number.isFinite(input) ? input : null;

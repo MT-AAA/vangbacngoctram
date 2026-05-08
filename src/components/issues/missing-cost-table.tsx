@@ -17,6 +17,7 @@ import { Label } from "@/components/ui/label";
 import { Link2, Loader2, Pencil, X } from "lucide-react";
 import { toast } from "sonner";
 import {
+  formatMoneyInput,
   formatNumber,
   formatVND,
   formatVNDate,
@@ -32,6 +33,7 @@ type Props = {
   pageSize: number;
   includeIgnored: boolean;
   highlightId?: string;
+  categoryCode?: string | null;
 };
 
 export function MissingCostTable({
@@ -41,14 +43,16 @@ export function MissingCostTable({
   pageSize,
   includeIgnored,
   highlightId,
+  categoryCode,
 }: Props) {
   const router = useRouter();
   const [selected, setSelected] = useState<Set<string>>(() => new Set());
   const [bulkCost, setBulkCost] = useState("");
-  const [ignoreReason, setIgnoreReason] = useState("");
+  const [bulkPickerLabel, setBulkPickerLabel] = useState<string | null>(null);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [singleCost, setSingleCost] = useState("");
   const [pickerSale, setPickerSale] = useState<SaleIssueRow | null>(null);
+  const [bulkPickerOpen, setBulkPickerOpen] = useState(false);
   const [pending, startTransition] = useTransition();
   const highlightRef = useRef<HTMLTableRowElement | null>(null);
   const [highlightActive, setHighlightActive] = useState(false);
@@ -62,8 +66,6 @@ export function MissingCostTable({
     if (node) {
       node.scrollIntoView({ behavior: "smooth", block: "center" });
     }
-    const t = window.setTimeout(() => setHighlightActive(false), 4000);
-    return () => window.clearTimeout(t);
   }, [highlightId, rows]);
 
   const allChecked = rows.length > 0 && rows.every((r) => selected.has(r.id));
@@ -146,33 +148,6 @@ export function MissingCostTable({
     });
   }
 
-  async function ignoreSelected() {
-    if (selectedIds.length === 0) {
-      toast.error("Chọn ít nhất một dòng");
-      return;
-    }
-    const reason = ignoreReason.trim();
-    if (!reason) {
-      toast.error("Nhập lý do bỏ qua");
-      return;
-    }
-    startTransition(async () => {
-      try {
-        await postJSON("/api/issues/sales/ignore", {
-          ids: selectedIds,
-          reason,
-        });
-        toast.success(`Đã bỏ qua ${selectedIds.length} dòng`);
-        setSelected(new Set());
-        setIgnoreReason("");
-        router.refresh();
-      } catch (err) {
-        const msg = err instanceof Error ? err.message : "Cập nhật thất bại";
-        toast.error(msg);
-      }
-    });
-  }
-
   async function unignore(id: string) {
     startTransition(async () => {
       try {
@@ -187,8 +162,21 @@ export function MissingCostTable({
   }
 
   const totalPages = Math.max(1, Math.ceil(total / pageSize));
-  const pageHref = (p: number) =>
-    `?page=${p}${includeIgnored ? "&include_ignored=1" : ""}`;
+  const pageHref = (p: number) => {
+    const params = new URLSearchParams();
+    params.set("page", String(p));
+    if (includeIgnored) params.set("include_ignored", "1");
+    if (categoryCode) params.set("category", categoryCode);
+    return `?${params.toString()}`;
+  };
+
+  const categoryHref = (code: string | null) => {
+    const params = new URLSearchParams();
+    params.set("page", "0");
+    if (includeIgnored) params.set("include_ignored", "1");
+    if (code) params.set("category", code);
+    return `?${params.toString()}`;
+  };
 
   return (
     <div className="space-y-4">
@@ -197,49 +185,71 @@ export function MissingCostTable({
         <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
           Thao tác hàng loạt {selectedIds.length > 0 ? `(${selectedIds.length} dòng đã chọn)` : ""}
         </div>
-        <div className="mt-2 grid grid-cols-1 gap-3 md:grid-cols-2">
-          <div className="flex items-end gap-2">
-            <div className="flex-1">
-              <Label htmlFor="bulk-cost" className="text-xs">
-                Giá vốn cho mỗi dòng đã chọn
-              </Label>
+        <div className="mt-2 rounded-xl border border-amber-200/70 bg-white/45 p-3">
+          <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+            <div>
+              <div className="mb-1 text-[11px] font-medium text-muted-foreground">
+                Lọc nhanh theo nhóm hàng
+              </div>
+              <div className="flex flex-wrap gap-2">
+                {[
+                  { code: null, label: "Tất cả" },
+                  { code: "vang_ta", label: "Vàng ta" },
+                  { code: "vang_tay", label: "Vàng tây" },
+                  { code: "bac", label: "Bạc" },
+                ].map((it) => {
+                  const active = (categoryCode ?? null) === it.code;
+                  return (
+                    <Button
+                      key={it.code ?? "all"}
+                      size="sm"
+                      variant={active ? "default" : "outline"}
+                      onClick={() => router.push(categoryHref(it.code))}
+                    >
+                      {it.label}
+                    </Button>
+                  );
+                })}
+              </div>
+            </div>
+            <div className="lg:pt-5">
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => {
+                  setBulkPickerLabel(`${selectedIds.length} dòng đã chọn`);
+                  setBulkPickerOpen(true);
+                }}
+                disabled={pending || selectedIds.length === 0}
+              >
+                <Link2 className="mr-1 h-3.5 w-3.5" />
+                Gắn tồn kho
+              </Button>
+            </div>
+          </div>
+
+          <div className="mt-3 border-t border-amber-200/70 pt-3">
+            <Label htmlFor="bulk-cost" className="text-xs">
+              Giá vốn cho mỗi dòng đã chọn
+            </Label>
+            <div className="mt-1 flex flex-col gap-2 sm:flex-row">
               <Input
                 id="bulk-cost"
                 placeholder="vd: 5.000.000"
                 value={bulkCost}
-                onChange={(e) => setBulkCost(e.target.value)}
+                onChange={(e) => setBulkCost(formatMoneyInput(e.target.value))}
+                inputMode="numeric"
                 disabled={pending}
+                className="sm:max-w-md"
               />
+              <Button
+                size="sm"
+                onClick={applyBulkCost}
+                disabled={pending || selectedIds.length === 0 || !bulkCost}
+              >
+                {pending ? <Loader2 className="h-4 w-4 animate-spin" /> : "Áp dụng"}
+              </Button>
             </div>
-            <Button
-              size="sm"
-              onClick={applyBulkCost}
-              disabled={pending || selectedIds.length === 0 || !bulkCost}
-            >
-              {pending ? <Loader2 className="h-4 w-4 animate-spin" /> : "Áp dụng"}
-            </Button>
-          </div>
-          <div className="flex items-end gap-2">
-            <div className="flex-1">
-              <Label htmlFor="ignore-reason" className="text-xs">
-                Lý do bỏ qua các dòng đã chọn
-              </Label>
-              <Input
-                id="ignore-reason"
-                placeholder="vd: quà tặng khuyến mãi"
-                value={ignoreReason}
-                onChange={(e) => setIgnoreReason(e.target.value)}
-                disabled={pending}
-              />
-            </div>
-            <Button
-              size="sm"
-              variant="outline"
-              onClick={ignoreSelected}
-              disabled={pending || selectedIds.length === 0 || !ignoreReason}
-            >
-              Đánh dấu bỏ qua
-            </Button>
           </div>
         </div>
       </div>
@@ -339,7 +349,10 @@ export function MissingCostTable({
                       <Input
                         autoFocus
                         value={singleCost}
-                        onChange={(e) => setSingleCost(e.target.value)}
+                        onChange={(e) =>
+                          setSingleCost(formatMoneyInput(e.target.value))
+                        }
+                        inputMode="numeric"
                         placeholder="Giá vốn"
                         className="h-8 w-32"
                         disabled={pending}
@@ -378,6 +391,14 @@ export function MissingCostTable({
                       <Button
                         size="sm"
                         variant="outline"
+                        onClick={() => setPickerSale(r)}
+                      >
+                        <Link2 className="mr-1 h-3.5 w-3.5" />
+                        Gắn tồn kho
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="outline"
                         onClick={() => {
                           setEditingId(r.id);
                           setSingleCost("");
@@ -385,14 +406,6 @@ export function MissingCostTable({
                       >
                         <Pencil className="mr-1 h-3.5 w-3.5" />
                         Nhập giá vốn
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={() => setPickerSale(r)}
-                      >
-                        <Link2 className="mr-1 h-3.5 w-3.5" />
-                        Gắn tồn kho
                       </Button>
                     </div>
                   )}
@@ -443,6 +456,19 @@ export function MissingCostTable({
             : null
         }
         onLinked={() => router.refresh()}
+      />
+      <InventoryPickerDialog
+        open={bulkPickerOpen}
+        onOpenChange={setBulkPickerOpen}
+        saleId={selectedIds[0] ?? ""}
+        saleIds={selectedIds}
+        saleProductName={bulkPickerLabel}
+        saleCategoryId={null}
+        saleCategoryName={null}
+        onLinked={() => {
+          setSelected(new Set());
+          router.refresh();
+        }}
       />
     </div>
   );

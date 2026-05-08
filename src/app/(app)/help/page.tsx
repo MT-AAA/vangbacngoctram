@@ -16,6 +16,8 @@ import {
 
 export const metadata = {
   title: "Hướng dẫn sử dụng — Ngọc Trâm",
+  description:
+    "Hướng dẫn sử dụng phần mềm quản lý vàng bạc Ngọc Trâm: nhập Excel, bán hàng, mua từ khách, tồn kho và báo cáo thuế.",
 };
 
 type Section = {
@@ -25,32 +27,46 @@ type Section = {
   body: React.ReactNode;
 };
 
+function ExampleBox({ children }: { children: React.ReactNode }) {
+  return (
+    <div className="rounded-xl border border-amber-300/70 bg-amber-50/80 p-3 text-sm text-amber-950">
+      <div className="mb-1 font-semibold text-forest">Ví dụ</div>
+      {children}
+    </div>
+  );
+}
+
+function NoteBox({ children }: { children: React.ReactNode }) {
+  return (
+    <div className="rounded-xl border border-emerald-200 bg-emerald-50/70 p-3 text-sm text-emerald-950">
+      {children}
+    </div>
+  );
+}
+
 const SECTIONS: Section[] = [
   {
     id: "tong-quan",
     title: "1. Tổng quan phần mềm",
     icon: BookOpen,
     body: (
-      <div className="space-y-2 text-sm text-emerald-900/85">
+      <div className="space-y-3 text-sm text-emerald-900/85">
         <p>
-          Phần mềm <strong>Ngọc Trâm</strong> hỗ trợ cửa hàng vàng bạc đá quý
-          quản lý dữ liệu kinh doanh và tính thuế GTGT theo phương pháp{" "}
-          <em>trực tiếp trên giá trị gia tăng</em>.
+          Phần mềm <strong>Ngọc Trâm</strong> dùng để quản lý bán hàng, mua từ
+          khách, tồn kho và hỗ trợ tính thuế GTGT theo phương pháp trực tiếp
+          trên giá trị gia tăng.
         </p>
-        <p>Phần mềm giúp bạn:</p>
-        <ul className="list-disc pl-5 space-y-1">
-          <li>Nhập file Excel báo cáo bán hàng chi tiết.</li>
-          <li>Quản lý dữ liệu mua từ khách (mua vàng cũ, đổi trang sức…).</li>
-          <li>
-            Quản lý tồn kho và phân loại sản phẩm theo nhóm Vàng ta, Vàng tây,
-            Bạc.
-          </li>
-          <li>
-            Tính toán chênh lệch giá trị gia tăng và ước tính số thuế GTGT phải
-            nộp.
-          </li>
-          <li>Xuất báo cáo cho kế toán hoặc người phụ trách thuế.</li>
+        <ul className="list-disc space-y-1 pl-5">
+          <li>Nhập file Excel bán hàng.</li>
+          <li>Ghi nhận giao dịch mua vàng/bạc từ khách.</li>
+          <li>Quản lý tồn kho để gắn giá vốn cho giao dịch bán.</li>
+          <li>Theo dõi dòng thiếu giá vốn, chưa phân loại, hóa đơn trùng.</li>
+          <li>Tổng hợp số liệu phục vụ báo cáo thuế.</li>
         </ul>
+        <NoteBox>
+          Nguyên tắc chính: muốn tính thuế đúng thì mỗi dòng bán cần có
+          <strong> phân loại sản phẩm</strong> và <strong>giá mua vào/giá vốn</strong>.
+        </NoteBox>
       </div>
     ),
   },
@@ -59,259 +75,288 @@ const SECTIONS: Section[] = [
     title: "2. Quy trình sử dụng khuyến nghị",
     icon: ListChecks,
     body: (
-      <ol className="list-decimal pl-5 space-y-1 text-sm text-emerald-900/85">
-        <li>Nhập file Excel bán hàng của kỳ.</li>
-        <li>Kiểm tra kết quả import (đối soát file).</li>
-        <li>Xử lý các sản phẩm chưa được phân loại.</li>
-        <li>Nhập dữ liệu mua từ khách của kỳ.</li>
-        <li>Cập nhật tồn kho và giá mua vào.</li>
-        <li>Gắn giá mua vào cho dòng bán còn thiếu giá vốn.</li>
-        <li>Kiểm tra chênh lệch giá trị gia tăng.</li>
-        <li>Tạo báo cáo thuế kỳ.</li>
-        <li>Xuất báo cáo cho kế toán.</li>
-      </ol>
+      <div className="space-y-4 text-sm text-emerald-900/85">
+        <p>
+          Quy trình dưới đây giúp dữ liệu bán hàng, mua vào, tồn kho và thuế đi
+          đúng thứ tự, hạn chế thiếu giá vốn hoặc tính sai thuế.
+        </p>
+        <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+          {[
+            {
+              step: "01",
+              title: "Nhập Excel bán hàng",
+              desc: "Vào Nhập Excel, chọn file bán hàng chi tiết và kiểm tra preview trước khi ghi dữ liệu.",
+              result: "Dữ liệu xuất hiện ở trang Bán hàng.",
+            },
+            {
+              step: "02",
+              title: "Đối soát sau import",
+              desc: "Kiểm tra tổng tiền, số dòng, hóa đơn trùng và các dòng chưa phân loại.",
+              result: "Biết dòng nào cần xử lý trước khi tính thuế.",
+            },
+            {
+              step: "03",
+              title: "Nhập Mua từ khách",
+              desc: "Nhập các giao dịch mua vàng/bạc từ khách trong kỳ, điền trọng lượng tính thuế và đơn giá mua.",
+              result: "Có nguồn giá mua vào để tính giá vốn.",
+            },
+            {
+              step: "04",
+              title: "Đưa hàng vào Tồn kho",
+              desc: "Nếu món mua từ khách sẽ bán lại, tích Đưa vào hàng tồn kho để tạo mặt hàng tồn.",
+              result: "Có hàng tồn để gắn với giao dịch bán sau này.",
+            },
+            {
+              step: "05",
+              title: "Xử lý Thiếu giá vốn",
+              desc: "Vào Cần xử lý → Thiếu giá vốn, ưu tiên Gắn tồn kho cho từng dòng hoặc hàng loạt.",
+              result: "Dòng bán có giá vốn và tồn kho được trừ đúng.",
+            },
+            {
+              step: "06",
+              title: "Kiểm tra Dashboard & Thuế",
+              desc: "Xem Dashboard, kiểm tra GTGT, dòng ước tính, rồi tạo hoặc tính lại báo cáo thuế.",
+              result: "Số liệu sẵn sàng để kế toán kiểm tra.",
+            },
+          ].map((item, index, arr) => (
+            <div key={item.step} className="relative rounded-2xl border border-amber-300/60 bg-white/70 p-4 shadow-sm">
+              {index < arr.length - 1 ? (
+                <div className="absolute -right-3 top-1/2 hidden h-px w-3 bg-amber-300 xl:block" />
+              ) : null}
+              <div className="mb-2 flex items-center gap-2">
+                <span className="flex h-8 w-8 items-center justify-center rounded-full bg-gold text-xs font-bold text-white">
+                  {item.step}
+                </span>
+                <h3 className="font-semibold text-forest">{item.title}</h3>
+              </div>
+              <p>{item.desc}</p>
+              <div className="mt-2 rounded-lg bg-emerald-50 px-3 py-2 text-xs text-emerald-800">
+                <strong>Kết quả:</strong> {item.result}
+              </div>
+            </div>
+          ))}
+        </div>
+        <div className="rounded-xl border border-red-300 bg-red-50 p-3 text-red-800">
+          <p className="font-semibold">Lưu ý quan trọng</p>
+          <p className="mt-1">
+            Khi xử lý thiếu giá vốn, cách chuẩn nhất là <strong>Gắn tồn kho</strong>.
+            Chỉ dùng <strong>Nhập giá vốn thủ công</strong> khi có lý do đặc biệt,
+            vì giá vốn tự nhập không trừ vào tồn kho.
+          </p>
+        </div>
+        <ExampleBox>
+          <p>
+            Ví dụ tháng 05: nhập file bán hàng → nhập 3 giao dịch mua vàng cũ
+            từ khách → đưa các món sẽ bán lại vào tồn kho → gắn tồn kho cho các
+            hóa đơn đang thiếu giá vốn → kiểm tra Dashboard và báo cáo thuế.
+          </p>
+        </ExampleBox>
+      </div>
     ),
   },
   {
     id: "dashboard",
-    title: "3. Hướng dẫn Dashboard Tổng quan",
+    title: "3. Dashboard Tổng quan",
     icon: LayoutDashboard,
     body: (
-      <div className="space-y-2 text-sm text-emerald-900/85">
-        <p>
-          Trang <strong>Tổng quan</strong> hiển thị các chỉ số quan trọng của
-          cửa hàng theo kỳ được chọn:
-        </p>
-        <ul className="list-disc pl-5 space-y-1">
-          <li>
-            <strong>Tổng bán ra</strong>: tổng tiền bán ra trong kỳ.
-          </li>
-          <li>
-            <strong>Tổng mua vào tương ứng</strong>: tổng giá vốn của các dòng
-            bán ra.
-          </li>
-          <li>
-            <strong>Chênh lệch GTGT</strong>: bán ra trừ mua vào tương ứng.
-          </li>
-          <li>
-            <strong>Thuế GTGT phải nộp</strong>: 10% phần chênh lệch dương.
-          </li>
-          <li>
-            <strong>Âm chuyển kỳ sau</strong>: phần chênh lệch âm được chuyển
-            sang kỳ tiếp theo trong cùng năm.
-          </li>
-          <li>
-            <strong>Dữ liệu đang tính theo ước tính</strong>: số dòng đang dùng
-            giá vốn bình quân (chưa có giá vốn thực).
-          </li>
+      <div className="space-y-3 text-sm text-emerald-900/85">
+        <p>Dashboard hiển thị nhanh tình hình bán hàng, mua vào, tồn kho và thuế.</p>
+        <ul className="list-disc space-y-1 pl-5">
+          <li><strong>Tổng bán ra</strong>: tổng tiền bán hàng trong kỳ lọc.</li>
+          <li><strong>Tổng mua vào</strong>: giá vốn tương ứng với hàng đã bán.</li>
+          <li><strong>Chênh lệch GTGT</strong>: bán ra trừ mua vào.</li>
+          <li><strong>Thuế GTGT phải nộp</strong>: tính trên phần chênh lệch dương.</li>
+          <li><strong>Tổng quan hàng hóa</strong>: theo Vàng ta, Vàng tây, Bạc gồm Tổng khối lượng, Tổng tiền, Đơn giá bình quân.</li>
         </ul>
-        <p>
-          Dùng bộ lọc <em>Ngày / Tháng / Quý / Năm</em> hoặc bộ lọc{" "}
-          <em>Tùy chọn</em> để chọn khoảng thời gian tùy ý. Các chỉ số, biểu đồ
-          và danh sách giao dịch gần đây sẽ tự động cập nhật theo khoảng đã
-          chọn.
-        </p>
+        <ExampleBox>
+          <p>
+            Vàng ta tồn kho 106 chỉ, tổng tiền 1.745.470.200đ thì đơn giá bình
+            quân khoảng 16.466.700đ/chỉ.
+          </p>
+        </ExampleBox>
       </div>
     ),
   },
   {
     id: "import",
-    title: "4. Hướng dẫn Nhập Excel",
+    title: "4. Nhập Excel bán hàng",
     icon: FileSpreadsheet,
     body: (
-      <div className="space-y-2 text-sm text-emerald-900/85">
-        <ul className="list-disc pl-5 space-y-1">
-          <li>
-            Sử dụng đúng <strong>file báo cáo bán hàng chi tiết</strong> xuất
-            từ phần mềm bán hàng.
-          </li>
-          <li>
-            Hệ thống cho xem trước (preview) trước khi commit để bạn kiểm tra
-            số dòng và tổng tiền.
-          </li>
-          <li>
-            Phần mềm tự nhận diện các dòng trùng theo mã giao dịch. Dòng đã
-            tồn tại sẽ được cập nhật theo file mới nhất, không tạo bản sao.
-          </li>
-          <li>
-            Sau khi commit, vào trang <em>Lịch sử import</em> để đối soát số
-            dòng nhập, số dòng cập nhật, số dòng lỗi.
-          </li>
+      <div className="space-y-3 text-sm text-emerald-900/85">
+        <p>Trang này dùng để đưa file báo cáo bán hàng từ phần mềm ngoài vào hệ thống.</p>
+        <ul className="list-disc space-y-1 pl-5">
+          <li>Chọn đúng file Excel bán hàng chi tiết.</li>
+          <li>Xem preview trước khi ghi dữ liệu.</li>
+          <li>Sau khi commit, dữ liệu xuất hiện ở trang Bán hàng.</li>
+          <li>Hệ thống tự nhận diện giao dịch trùng để tránh nhân đôi dữ liệu.</li>
         </ul>
+        <NoteBox>
+          Nếu nhập sai file, vào <strong>Lịch sử import</strong> để kiểm tra và dùng
+          chức năng rollback nếu file đó cần hủy.
+        </NoteBox>
       </div>
     ),
   },
   {
     id: "sales",
-    title: "5. Hướng dẫn Bán hàng",
+    title: "5. Bán hàng và giá vốn",
     icon: Receipt,
     body: (
-      <div className="space-y-2 text-sm text-emerald-900/85">
-        <ul className="list-disc pl-5 space-y-1">
-          <li>
-            Danh sách bán hàng được tạo từ file Excel đã nhập, không cần nhập
-            tay từng dòng.
-          </li>
-          <li>
-            Một số dòng có thể đang <strong>thiếu giá vốn</strong>. Các dòng
-            này phải được bổ sung giá vốn trước khi báo cáo thuế phản ánh
-            chính xác.
-          </li>
-          <li>
-            Bạn có thể gắn giá vốn từ tồn kho hoặc nhập tay cho từng dòng.
-          </li>
-          <li>
-            Bộ lọc theo <em>khoảng ngày</em>, <em>phân loại</em> và{" "}
-            <em>trạng thái</em> giúp bạn tập trung xử lý các dòng cần lưu ý.
-          </li>
+      <div className="space-y-3 text-sm text-emerald-900/85">
+        <p>Trang Bán hàng lấy dữ liệu từ file Excel đã import.</p>
+        <ul className="list-disc space-y-1 pl-5">
+          <li><strong>Bán ra</strong>: số tiền khách trả khi mua hàng.</li>
+          <li><strong>Mua vào</strong>: giá vốn của món hàng đã bán.</li>
+          <li><strong>GTGT</strong>: Bán ra − Mua vào.</li>
+          <li><strong>Thiếu giá vốn</strong>: dòng bán chưa có giá mua vào để tính thuế.</li>
         </ul>
+        <NoteBox>
+          Khi gặp dòng <strong>Thiếu giá vốn</strong>, bấm <strong>Xử lý</strong> để
+          gắn với mặt hàng tồn kho hoặc nhập/chỉnh giá vốn phù hợp.
+        </NoteBox>
+        <ExampleBox>
+          <p>
+            Bán nhẫn 2 chỉ giá 36.000.000đ. Nếu gắn với tồn kho có giá vốn
+            16.500.000đ/chỉ thì mua vào = 33.000.000đ, GTGT = 3.000.000đ.
+          </p>
+        </ExampleBox>
       </div>
     ),
   },
   {
     id: "customer-purchases",
-    title: "6. Hướng dẫn Mua từ khách",
+    title: "6. Mua từ khách",
     icon: ShoppingBag,
     body: (
-      <div className="space-y-2 text-sm text-emerald-900/85">
-        <ul className="list-disc pl-5 space-y-1">
-          <li>Nhập tay các giao dịch cửa hàng mua vào từ khách.</li>
-          <li>
-            Đánh dấu <strong>Tính giá vốn</strong> nếu giao dịch này dùng để
-            tính giá mua vào cho mục đích thuế.
-          </li>
-          <li>
-            Có thể tùy chọn đưa giao dịch vào tồn kho, để dùng làm nguồn giá
-            vốn cho các lần bán sau.
-          </li>
-          <li>Thiếu phân loại hoặc thiếu số tiền sẽ được nhắc trên dashboard.</li>
+      <div className="space-y-3 text-sm text-emerald-900/85">
+        <p>Trang này dùng để nhập các giao dịch cửa hàng mua vàng/bạc từ khách.</p>
+        <ul className="list-disc space-y-1 pl-5">
+          <li><strong>Ngày mua</strong>: ngày phát sinh giao dịch.</li>
+          <li><strong>Tên hàng</strong>: mô tả món mua, ví dụ “Nhẫn vàng 9999”.</li>
+          <li><strong>Phân loại</strong>: Vàng ta, Vàng tây hoặc Bạc.</li>
+          <li><strong>Trọng lượng tính thuế</strong>: số chỉ dùng để tính tiền và giá bình quân.</li>
+          <li><strong>Đơn giá mua</strong>: giá mua trên 1 chỉ.</li>
+          <li><strong>Thành tiền</strong>: tự tính = trọng lượng tính thuế × đơn giá mua.</li>
         </ul>
+        <NoteBox>
+          <p className="font-semibold">Hai lựa chọn quan trọng:</p>
+          <ul className="mt-1 list-disc space-y-1 pl-5">
+            <li><strong>Tính vào giá mua bình quân</strong>: giao dịch được dùng làm nguồn giá vốn.</li>
+            <li><strong>Đưa vào hàng tồn kho</strong>: tạo thêm mặt hàng trong Tồn kho để bán/gắn giá vốn sau này.</li>
+          </ul>
+        </NoteBox>
+        <ExampleBox>
+          <p>
+            Mua của khách 6 chỉ vàng ta, đơn giá 17.000.000đ/chỉ. Thành tiền =
+            6 × 17.000.000 = 102.000.000đ. Nếu món này sẽ bán lại, nên tích cả
+            <strong> Tính vào giá mua bình quân</strong> và <strong>Đưa vào hàng tồn kho</strong>.
+          </p>
+        </ExampleBox>
       </div>
     ),
   },
   {
     id: "inventory",
-    title: "7. Hướng dẫn Tồn kho",
+    title: "7. Tồn kho",
     icon: Boxes,
     body: (
-      <div className="space-y-2 text-sm text-emerald-900/85">
-        <ul className="list-disc pl-5 space-y-1">
-          <li>Tạo, chỉnh sửa, lưu trữ các mặt hàng trong kho.</li>
-          <li>
-            Mặt hàng có giá vốn rõ ràng có thể được{" "}
-            <strong>gắn vào dòng bán</strong> để bổ sung giá mua vào.
-          </li>
-          <li>
-            Giữ chính xác <em>khối lượng</em> và <em>giá vốn</em> của từng mặt
-            hàng để đảm bảo tính thuế đúng.
-          </li>
-          <li>
-            Khi giao dịch không có giá vốn cụ thể, hệ thống có thể dùng{" "}
-            <em>giá bình quân</em> theo nhóm để ước tính.
-          </li>
+      <div className="space-y-3 text-sm text-emerald-900/85">
+        <p>Tồn kho quản lý các món hàng có thể dùng để bán và gắn giá vốn.</p>
+        <ul className="list-disc space-y-1 pl-5">
+          <li><strong>SKU</strong>: mã hàng, có thể để trống nếu chưa có.</li>
+          <li><strong>Tên hàng</strong>: tên/mô tả món hàng.</li>
+          <li><strong>Nhóm</strong>: Vàng ta, Vàng tây hoặc Bạc.</li>
+          <li><strong>SL món ban đầu</strong>: số món lúc nhập kho.</li>
+          <li><strong>SL món hiện có</strong>: số món còn lại.</li>
+          <li><strong>Trọng lượng ban đầu</strong>: tổng trọng lượng lúc nhập.</li>
+          <li><strong>Trọng lượng hiện có</strong>: trọng lượng còn lại sau khi bán một phần.</li>
+          <li><strong>Giá mua vào</strong>: tổng giá vốn của món hàng.</li>
+          <li><strong>Giá mua ĐV</strong>: giá vốn trên 1 chỉ.</li>
+          <li><strong>Giá bán</strong>: giá dự kiến bán ra, nếu có.</li>
         </ul>
+        <ExampleBox>
+          <p>
+            Nhập 1 dây chuyền 5 chỉ, giá mua 82.500.000đ: SL ban đầu = 1, SL
+            hiện có = 1, trọng lượng ban đầu = 5, trọng lượng hiện có = 5, giá
+            mua ĐV = 16.500.000đ/chỉ.
+          </p>
+        </ExampleBox>
+        <NoteBox>
+          Có thể <strong>chỉnh sửa</strong>, <strong>lưu trữ</strong> hoặc <strong>xóa</strong>.
+          Chỉ nên xóa khi nhập sai và mặt hàng chưa gắn với giao dịch bán.
+        </NoteBox>
       </div>
     ),
   },
   {
     id: "categories",
-    title: "8. Hướng dẫn Phân loại sản phẩm",
+    title: "8. Phân loại sản phẩm",
     icon: Tag,
     body: (
-      <div className="space-y-2 text-sm text-emerald-900/85">
-        <ul className="list-disc pl-5 space-y-1">
-          <li>
-            Mỗi sản phẩm cần được phân loại vào một trong ba nhóm:{" "}
-            <strong>Vàng ta</strong>, <strong>Vàng tây</strong>,{" "}
-            <strong>Bạc</strong>.
-          </li>
-          <li>
-            Tên sản phẩm không rõ ràng phải được phân loại thủ công ở trang{" "}
-            <em>Cần xử lý → Chưa phân loại</em>.
-          </li>
-          <li>
-            Có thể tạo các <em>quy tắc phân loại theo từ khóa</em> để các lần
-            import sau tự nhận diện chính xác hơn.
-          </li>
+      <div className="space-y-3 text-sm text-emerald-900/85">
+        <p>Phân loại giúp hệ thống tính giá bình quân và báo cáo đúng nhóm hàng.</p>
+        <ul className="list-disc space-y-1 pl-5">
+          <li><strong>Vàng ta</strong>: vàng 9999, 24K, vàng nhẫn trơn...</li>
+          <li><strong>Vàng tây</strong>: 10K, 14K, 18K, trang sức vàng tây...</li>
+          <li><strong>Bạc</strong>: trang sức bạc, bạc nguyên liệu...</li>
         </ul>
+        <ExampleBox>
+          <p>
+            “Nhẫn 9999 2 chỉ” nên phân loại Vàng ta. “Lắc tay 18K” nên phân
+            loại Vàng tây. “Dây bạc Ý” nên phân loại Bạc.
+          </p>
+        </ExampleBox>
       </div>
     ),
   },
   {
     id: "tax-reports",
-    title: "9. Hướng dẫn Báo cáo thuế",
+    title: "9. Báo cáo thuế",
     icon: Calculator,
     body: (
-      <div className="space-y-2 text-sm text-emerald-900/85">
-        <p>Phần mềm tính thuế GTGT theo phương pháp trực tiếp trên giá trị gia tăng:</p>
-        <ul className="list-disc pl-5 space-y-1">
-          <li>
-            <strong>Giá trị gia tăng</strong> = Tổng tiền bán ra − Tổng tiền
-            mua vào tương ứng.
-          </li>
-          <li>
-            <strong>Thuế GTGT phải nộp</strong> = Phần giá trị gia tăng dương
-            sau khi bù trừ âm chuyển kỳ × 10%.
-          </li>
-          <li>
-            Phần âm chỉ được <em>chuyển kỳ trong cùng năm tài chính</em>.
-          </li>
+      <div className="space-y-3 text-sm text-emerald-900/85">
+        <p>Phần mềm hỗ trợ tính thuế GTGT theo phương pháp trực tiếp.</p>
+        <ul className="list-disc space-y-1 pl-5">
+          <li><strong>Giá trị gia tăng</strong> = Tổng bán ra − Tổng mua vào.</li>
+          <li><strong>Thuế GTGT</strong> = phần giá trị gia tăng dương × thuế suất cấu hình.</li>
+          <li>Dòng thiếu giá vốn hoặc chưa phân loại có thể làm báo cáo chưa chính xác.</li>
         </ul>
-        <p>
-          Trang <em>Báo cáo thuế</em> cho phép tạo kỳ thuế (tháng / quý / năm),
-          tính lại số liệu và xuất kết quả. Số liệu ước tính cần được kế toán
-          hoặc người phụ trách thuế kiểm tra trước khi kê khai.
-        </p>
+        <ExampleBox>
+          <p>
+            Tổng bán ra 500.000.000đ, tổng mua vào 460.000.000đ, GTGT =
+            40.000.000đ. Nếu thuế suất 10% thì thuế tạm tính = 4.000.000đ.
+          </p>
+        </ExampleBox>
       </div>
     ),
   },
   {
     id: "import-history",
-    title: "10. Hướng dẫn Lịch sử import",
+    title: "10. Lịch sử import",
     icon: History,
     body: (
-      <ul className="list-disc pl-5 space-y-1 text-sm text-emerald-900/85">
-        <li>Liệt kê tất cả các file đã được nhập vào hệ thống.</li>
-        <li>Hiển thị số dòng nhập mới, số dòng cập nhật, số dòng lỗi.</li>
-        <li>So sánh tổng tiền của file với tổng tiền đã ghi nhận thực tế.</li>
-        <li>Hữu ích để kiểm tra nhanh khi nghi ngờ dữ liệu bị thiếu.</li>
+      <ul className="list-disc space-y-1 pl-5 text-sm text-emerald-900/85">
+        <li>Xem danh sách file đã nhập.</li>
+        <li>Kiểm tra số dòng thêm mới, cập nhật, lỗi.</li>
+        <li>Đối chiếu tổng tiền trong file với dữ liệu đã ghi nhận.</li>
+        <li>Rollback file nhập sai nếu cần hủy dữ liệu import.</li>
       </ul>
     ),
   },
   {
     id: "settings",
-    title: "11. Hướng dẫn Cài đặt & phân quyền",
+    title: "11. Cài đặt & phân quyền",
     icon: Settings,
     body: (
-      <div className="space-y-2 text-sm text-emerald-900/85">
-        <p>Trang Cài đặt dành cho quản trị viên gồm các phần:</p>
-        <ul className="list-disc pl-5 space-y-1">
-          <li>
-            <strong>Cửa hàng</strong>: thông tin cửa hàng, mã số thuế, địa chỉ.
-          </li>
-          <li>
-            <strong>Cài đặt thuế GTGT</strong>: phương pháp và thuế suất mặc
-            định áp dụng cho cửa hàng.
-          </li>
-          <li>
-            <strong>Người dùng &amp; phân quyền</strong>: xem danh sách người
-            dùng trong cửa hàng và đổi vai trò khi cần.
-          </li>
+      <div className="space-y-3 text-sm text-emerald-900/85">
+        <ul className="list-disc space-y-1 pl-5">
+          <li><strong>Cửa hàng</strong>: tên, địa chỉ, mã số thuế.</li>
+          <li><strong>Thuế GTGT</strong>: cấu hình phương pháp và thuế suất.</li>
+          <li><strong>Người dùng</strong>: quản lý vai trò admin, nhân viên, người xem.</li>
         </ul>
-        <p>Các vai trò:</p>
-        <ul className="list-disc pl-5 space-y-1">
-          <li>
-            <strong>Quản trị viên</strong>: toàn quyền quản lý hệ thống, dữ
-            liệu, người dùng và cài đặt.
-          </li>
-          <li>
-            <strong>Nhân viên</strong>: nhập liệu hằng ngày và xem các phần
-            được phân quyền.
-          </li>
-          <li>
-            <strong>Người xem</strong>: chỉ xem dữ liệu, không chỉnh sửa.
-          </li>
-        </ul>
+        <NoteBox>
+          Chỉ admin nên được quyền xóa dữ liệu, lưu trữ tồn kho và quản lý người dùng.
+        </NoteBox>
       </div>
     ),
   },
@@ -322,66 +367,30 @@ const SECTIONS: Section[] = [
     body: (
       <div className="space-y-3 text-sm text-emerald-900/85">
         <div>
-          <p className="font-semibold text-forest">
-            Vì sao file đã nhập rồi vẫn có dòng được cập nhật?
+          <p className="font-semibold text-forest">Tích cả “Tính vào giá mua bình quân” và “Đưa vào tồn kho” có bị tính 2 lần không?</p>
+          <p>Không. Một mục dùng cho giá vốn bình quân, một mục tạo hàng tồn để quản lý/bán lại.</p>
+        </div>
+        <div>
+          <p className="font-semibold text-forest">Nếu chỉ tích “Tính vào giá mua bình quân” thì sao?</p>
+          <p>Giao dịch chỉ dùng làm nguồn giá vốn, không tạo mặt hàng tồn kho để bán/gắn sau này.</p>
+        </div>
+        <div className="rounded-xl border border-red-300 bg-red-50 p-3 text-red-800">
+          <p className="font-semibold">Dòng bán thiếu giá vốn xử lý thế nào?</p>
+          <p className="mt-1">
+            Cách chuẩn nhất là <strong>Gắn tồn kho</strong> để hệ thống vừa lấy
+            đúng giá vốn, vừa trừ đúng số lượng/trọng lượng tồn kho và lưu dấu
+            vết món hàng bán ra lấy từ đâu.
           </p>
-          <p>
-            Hệ thống nhận diện trùng theo mã giao dịch. Khi bạn nhập lại file
-            có cùng giao dịch, dòng đã tồn tại sẽ được cập nhật theo file mới
-            nhất, không tạo bản sao.
+          <p className="mt-1">
+            <strong>Nhập giá vốn thủ công</strong> chỉ nên dùng khi chưa có dữ
+            liệu tồn kho cũ, có chứng từ giá vốn riêng hoặc cần xử lý tạm. Giá
+            vốn tự nhập chỉ dùng để tính thuế cho hóa đơn đó và
+            <strong> không trừ vào tồn kho</strong>.
           </p>
         </div>
         <div>
-          <p className="font-semibold text-forest">Vì sao thuế chưa tính được?</p>
-          <p>
-            Thường do còn dòng bán <em>chưa có giá vốn</em> hoặc{" "}
-            <em>chưa được phân loại</em>. Hãy xử lý hết các mục trong{" "}
-            <em>Cần xử lý</em> trước khi tạo báo cáo thuế.
-          </p>
-        </div>
-        <div>
-          <p className="font-semibold text-forest">Vì sao có dữ liệu ước tính?</p>
-          <p>
-            Khi một số dòng đang dùng giá vốn bình quân vì chưa có giá vốn
-            thực. Dữ liệu này được đánh dấu rõ và cần kiểm tra trước khi báo
-            cáo.
-          </p>
-        </div>
-        <div>
-          <p className="font-semibold text-forest">Khi nào cần phân loại sản phẩm?</p>
-          <p>
-            Khi tên sản phẩm không đủ rõ để hệ thống tự nhận diện thuộc nhóm
-            Vàng ta, Vàng tây hay Bạc. Bạn nên phân loại càng sớm càng tốt vì
-            phân loại ảnh hưởng trực tiếp đến giá vốn và thuế.
-          </p>
-        </div>
-        <div>
-          <p className="font-semibold text-forest">
-            Khi nào dùng giá mua bình quân?
-          </p>
-          <p>
-            Khi không có giá vốn cụ thể cho một dòng bán, hệ thống có thể tính
-            theo giá bình quân của nhóm sản phẩm đó. Đây là số ước tính.
-          </p>
-        </div>
-        <div>
-          <p className="font-semibold text-forest">Nếu import sai file thì làm gì?</p>
-          <p>
-            Vào <em>Lịch sử import</em>, kiểm tra file bị sai, đối soát lại với
-            file đúng và import lại. Hệ thống sẽ tự cập nhật các dòng theo file
-            mới nhất.
-          </p>
-        </div>
-        <div>
-          <p className="font-semibold text-forest">
-            Vì sao số thuế trên hóa đơn là 0 nhưng app vẫn tính thuế?
-          </p>
-          <p>
-            Vì cửa hàng đang áp dụng thuế GTGT theo phương pháp{" "}
-            <em>trực tiếp trên giá trị gia tăng</em>, không phải theo phương
-            pháp khấu trừ. Thuế được tính trên chênh lệch giữa giá bán và giá
-            mua, không cộng lên hóa đơn.
-          </p>
+          <p className="font-semibold text-forest">Khi nào nên xóa tồn kho?</p>
+          <p>Chỉ xóa khi nhập sai và mặt hàng chưa gắn với giao dịch bán. Nếu không chắc, nên lưu trữ.</p>
         </div>
       </div>
     ),
@@ -392,11 +401,9 @@ const SECTIONS: Section[] = [
     icon: AlertTriangle,
     body: (
       <div className="rounded-xl border border-amber-300/60 bg-amber-50 p-4 text-sm text-amber-900">
-        <p>
-          Phần mềm hỗ trợ tổng hợp dữ liệu và ước tính số thuế theo cấu hình.
-          Số liệu cuối cùng cần được kế toán hoặc người phụ trách thuế kiểm
-          tra trước khi kê khai.
-        </p>
+        Phần mềm hỗ trợ tổng hợp và ước tính số liệu. Trước khi kê khai chính
+        thức, kế toán hoặc người phụ trách thuế cần kiểm tra lại dữ liệu bán
+        hàng, mua vào, giá vốn và phân loại sản phẩm.
       </div>
     ),
   },
@@ -406,19 +413,18 @@ export default function HelpPage() {
   return (
     <div className="space-y-6 pt-1">
       <div>
-        <h1 className="text-[24px] lg:text-[28px] font-semibold tracking-tight text-forest">
+        <h1 className="text-[24px] font-semibold tracking-tight text-forest lg:text-[28px]">
           Hướng dẫn sử dụng
         </h1>
-        <p className="text-sm text-emerald-900/70 mt-1">
-          Tài liệu nhanh giúp chủ cửa hàng và nhân viên sử dụng phần mềm hiệu
-          quả.
+        <p className="mt-1 text-sm text-emerald-900/70">
+          Tài liệu hướng dẫn nhập liệu, xử lý giá vốn, quản lý tồn kho và báo
+          cáo thuế cho cửa hàng.
         </p>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-[260px_minmax(0,1fr)] gap-6">
-        {/* Table of contents */}
-        <aside className="card-cream rounded-2xl p-4 lg:sticky lg:top-4 self-start">
-          <div className="text-[11px] uppercase tracking-[0.18em] text-emerald-900/55 mb-2">
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-[260px_minmax(0,1fr)]">
+        <aside className="card-cream self-start rounded-2xl p-4 lg:sticky lg:top-24 lg:max-h-[calc(100vh-7rem)] lg:overflow-y-auto">
+          <div className="mb-2 text-[11px] uppercase tracking-[0.18em] text-emerald-900/55">
             Mục lục
           </div>
           <nav>
@@ -427,7 +433,7 @@ export default function HelpPage() {
                 <li key={s.id}>
                   <a
                     href={`#${s.id}`}
-                    className="block px-2 py-1.5 rounded-lg text-sm text-emerald-900/85 hover:bg-amber-300/20 hover:text-emerald-950"
+                    className="block rounded-lg px-2 py-1.5 text-sm text-emerald-900/85 hover:bg-amber-300/20 hover:text-emerald-950"
                   >
                     {s.title}
                   </a>
@@ -437,21 +443,20 @@ export default function HelpPage() {
           </nav>
         </aside>
 
-        {/* Content */}
-        <div className="space-y-4 min-w-0">
+        <div className="min-w-0 space-y-4">
           {SECTIONS.map((s) => {
             const Icon = s.icon;
             return (
               <section
                 key={s.id}
                 id={s.id}
-                className="card-cream rounded-2xl p-5 lg:p-6 scroll-mt-24"
+                className="card-cream scroll-mt-24 rounded-2xl p-5 lg:p-6"
               >
-                <div className="flex items-center gap-3 mb-3">
-                  <span className="icon-rim h-10 w-10 rounded-full flex items-center justify-center shrink-0">
+                <div className="mb-3 flex items-center gap-3">
+                  <span className="icon-rim flex h-10 w-10 shrink-0 items-center justify-center rounded-full">
                     <Icon className="h-4 w-4 text-amber-700" />
                   </span>
-                  <h2 className="text-base lg:text-lg font-semibold text-forest">
+                  <h2 className="text-base font-semibold text-forest lg:text-lg">
                     {s.title}
                   </h2>
                 </div>
