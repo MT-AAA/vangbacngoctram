@@ -263,12 +263,19 @@ export function CustomerPurchaseForm({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
       });
+      const data = await res.json().catch(() => ({}));
       if (!res.ok) {
-        const err = await res.json().catch(() => ({}));
         toast.error(editing ? "Cập nhật thất bại" : "Lưu thất bại", {
-          description: err?.error ?? `HTTP ${res.status}`,
+          description: data?.error ?? `HTTP ${res.status}`,
         });
         return;
+      }
+      const impact = data?.recalc_impact;
+      if (impact?.affected_sales_count > 0) {
+        toast.warning("Giao dịch mua ngày cũ có thể làm đổi giá vốn", {
+          description: `${impact.affected_sales_count} hóa đơn bán từ ngày ${impact.earliest_sale_date} cần bấm tính lại giá vốn. ${impact.locked_period_count > 0 ? `${impact.locked_period_count} kỳ thuế đã khóa sẽ không tự cập nhật.` : ""}`,
+          duration: 8000,
+        });
       }
       toast.success(
         editing ? "Đã cập nhật giao dịch mua" : "Đã thêm giao dịch mua"

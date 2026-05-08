@@ -94,7 +94,7 @@ function applyFilters<T>(
     query = query.eq("product_category_id", filters.category);
   }
 
-  if (filters.status === "active") {
+  if (!filters.status || filters.status === "active") {
     query = query.not("status", "in", "(archived,sold)");
   } else if (filters.status) {
     query = query.eq("status", filters.status);
@@ -269,7 +269,10 @@ export async function loadInventoryPicker(
     .eq("is_tax_cost_source", true)
     .gt("current_quantity", 0);
 
-  if (args.nameLike) {
+  // Với mô hình rổ bình quân, tên bán ra như "Dây bạc" / "Lắc bạc"
+  // vẫn nên gắn vào rổ "Bạc". Vì vậy chỉ dùng nhóm hàng để ưu tiên,
+  // không lọc cứng theo tên sản phẩm.
+  if (args.nameLike && !args.categoryId) {
     query = query.ilike("name", `%${args.nameLike}%`);
   }
   if (args.excludeIds && args.excludeIds.length > 0) {

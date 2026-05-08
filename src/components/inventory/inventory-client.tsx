@@ -126,7 +126,7 @@ export function InventoryClient({
         {canEdit ? (
           <Button onClick={() => setCreating(true)} disabled={pending}>
             <Plus className="mr-1 h-4 w-4" />
-            Thêm mặt hàng
+            Thêm / điều chỉnh rổ
           </Button>
         ) : null}
       </div>
@@ -307,15 +307,15 @@ export function InventoryClient({
             <TableHeader>
               <TableRow>
                 <TableHead>SKU</TableHead>
-                <TableHead>Tên hàng</TableHead>
+                <TableHead>Rổ tồn kho</TableHead>
                 <TableHead>Nhóm</TableHead>
                 <TableHead>Loại sản phẩm</TableHead>
                 <TableHead>Tuổi vàng</TableHead>
                 <TableHead>ĐVT</TableHead>
                 <TableHead className="text-right">SL hiện có</TableHead>
                 <TableHead className="text-right">TL hiện có</TableHead>
-                <TableHead className="text-right">Giá mua vào</TableHead>
-                <TableHead className="text-right">Giá mua ĐV</TableHead>
+                <TableHead className="text-right">Giá vốn còn</TableHead>
+                <TableHead className="text-right">Giá vốn BQ</TableHead>
                 <TableHead className="text-right">Giá bán</TableHead>
                 <TableHead>Nguồn</TableHead>
                 <TableHead>Trạng thái</TableHead>

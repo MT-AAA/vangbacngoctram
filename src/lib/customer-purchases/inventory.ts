@@ -47,64 +47,108 @@ export async function ensureInventoryItemForPurchase(
   admin: AdminClient,
   input: InventoryLinkInput
 ): Promise<{ inventory_item_id: string }> {
-  const { data: purchase } = await admin
-    .from("customer_purchases")
-    .select("inventory_item_id")
-    .eq("id", input.purchase_id)
+  if (!input.product_category_id) {
+    throw new Error("Cần phân loại Vàng ta / Vàng tây / Bạc trước khi đưa vào tồn kho");
+  }
+
+  const { data: category } = await admin
+    .from("product_categories")
+    .select("id, name, code")
+    .eq("id", input.product_category_id)
+    .eq("store_id", input.store_id)
     .maybeSingle();
 
-  const existingId = purchase?.inventory_item_id ?? null;
+  if (!category) {
+    throw new Error("Không tìm thấy nhóm hàng để cộng vào rổ tồn kho");
+  }
 
-  if (existingId) {
+  const poolReference = `POOL-${String(category.code ?? category.name)
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^a-zA-Z0-9]+/g, "-")
+    .replace(/^-|-$/g, "")
+    .toUpperCase()}`;
+  const poolName = `Tồn kho bình quân - ${category.name}`;
+
+  const { data: existingPool } = await admin
+    .from("inventory_items")
+    .select(
+      "id, current_quantity, current_weight, initial_quantity, initial_weight, purchase_cost_amount"
+    )
+    .eq("store_id", input.store_id)
+    .eq("product_category_id", input.product_category_id)
+    .eq("source_reference", poolReference)
+    .not("status", "in", "(archived,sold)")
+    .maybeSingle();
+
+  const addQuantity = Number(input.quantity ?? 0);
+  const addWeight = Number(input.weight ?? 0);
+  const addCost = Number(input.total_cost ?? 0);
+
+  if (existingPool) {
+    const currentQuantity = Number(existingPool.current_quantity ?? 0);
+    const currentWeight = Number(existingPool.current_weight ?? 0);
+    const currentCost = Number(existingPool.purchase_cost_amount ?? 0);
+    const newQuantity = currentQuantity + addQuantity;
+    const newWeight = currentWeight + addWeight;
+    const newCost = currentCost + addCost;
+    const newUnitCost = newWeight > 0 ? newCost / newWeight : input.unit_cost;
+
     await admin
       .from("inventory_items")
       .update({
-        store_id: input.store_id,
-        product_category_id: input.product_category_id,
-        name: input.product_name,
-        quantity_on_hand: input.quantity,
-        current_quantity: input.quantity,
-        weight: input.weight,
-        current_weight: input.weight,
-        weight_unit: input.weight_unit,
-        unit: input.weight_unit,
-        unit_cost: input.unit_cost,
-        purchase_unit_price: input.unit_cost > 0 ? input.unit_cost : null,
-        total_cost: input.total_cost,
-        purchase_cost_amount: input.total_cost > 0 ? input.total_cost : null,
-        notes: input.notes,
-        source_customer_purchase_id: input.purchase_id,
+        name: poolName,
+        quantity_on_hand: newQuantity,
+        current_quantity: newQuantity,
+        initial_quantity: Number(existingPool.initial_quantity ?? 0) + addQuantity,
+        weight: newWeight,
+        current_weight: newWeight,
+        initial_weight: Number(existingPool.initial_weight ?? 0) + addWeight,
+        unit_cost: newUnitCost,
+        purchase_unit_price: newUnitCost > 0 ? newUnitCost : null,
+        total_cost: newCost,
+        purchase_cost_amount: newCost > 0 ? newCost : null,
+        status: "in_stock",
+        notes: "Rổ tồn kho bình quân, tự động cộng từ mua khách.",
         source_type: "customer_purchase",
         source_id: input.purchase_id,
         is_tax_cost_source: true,
       })
-      .eq("id", existingId);
-    return { inventory_item_id: existingId };
+      .eq("id", existingPool.id);
+
+    await admin
+      .from("customer_purchases")
+      .update({ inventory_item_id: existingPool.id })
+      .eq("id", input.purchase_id);
+
+    return { inventory_item_id: existingPool.id };
   }
 
+  const unitCost = addWeight > 0 ? addCost / addWeight : input.unit_cost;
   const { data: inserted } = await admin
     .from("inventory_items")
     .insert({
       store_id: input.store_id,
       product_category_id: input.product_category_id,
-      name: input.product_name,
-      quantity_on_hand: input.quantity,
-      current_quantity: input.quantity,
-      initial_quantity: input.quantity,
+      name: poolName,
+      quantity_on_hand: addQuantity,
+      current_quantity: addQuantity,
+      initial_quantity: addQuantity,
       weight: input.weight,
       current_weight: input.weight,
       initial_weight: input.weight,
       weight_unit: input.weight_unit,
       unit: input.weight_unit,
-      unit_cost: input.unit_cost,
-      purchase_unit_price: input.unit_cost > 0 ? input.unit_cost : null,
-      total_cost: input.total_cost,
-      purchase_cost_amount: input.total_cost > 0 ? input.total_cost : null,
+      unit_cost: unitCost,
+      purchase_unit_price: unitCost > 0 ? unitCost : null,
+      total_cost: addCost,
+      purchase_cost_amount: addCost > 0 ? addCost : null,
       status: "in_stock",
-      notes: input.notes,
+      notes: "Rổ tồn kho bình quân, tự động cộng từ mua khách.",
       source_customer_purchase_id: input.purchase_id,
       source_type: "customer_purchase",
       source_id: input.purchase_id,
+      source_reference: poolReference,
       is_tax_cost_source: true,
       created_by: input.created_by,
     })
@@ -112,7 +156,7 @@ export async function ensureInventoryItemForPurchase(
     .single();
 
   if (!inserted) {
-    throw new Error("Không tạo được mặt hàng tồn kho");
+    throw new Error("Không tạo được rổ tồn kho bình quân");
   }
 
   await admin
