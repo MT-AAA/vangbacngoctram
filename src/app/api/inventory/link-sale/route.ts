@@ -13,6 +13,7 @@ import {
   cascadeRecalculateYear,
   recalculateTaxPeriod,
 } from "@/lib/tax/recalculate";
+import { calculateTimeBasedInventoryCost } from "@/lib/inventory/time-based-cost";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -50,7 +51,7 @@ export async function POST(request: Request) {
     admin
       .from("sales_transactions")
       .select(
-        "id, store_id, sale_date, quantity, weight, total_amount, purchase_cost_amount, purchase_cost_source, product_category_id, linked_inventory_item_id"
+        "id, store_id, sale_date, quantity, weight, weight_unit, total_amount, purchase_cost_amount, purchase_cost_source, product_category_id, linked_inventory_item_id"
       )
       .eq("id", input.sale_id)
       .eq("store_id", auth.profile.store_id)
@@ -100,6 +101,7 @@ export async function POST(request: Request) {
       store_id: sale.store_id,
       quantity: Number(sale.quantity ?? 0),
       weight: sale.weight === null ? null : Number(sale.weight),
+      weight_unit: sale.weight_unit ?? null,
       total_amount: Number(sale.total_amount ?? 0),
       purchase_cost_amount:
         sale.purchase_cost_amount === null
@@ -140,12 +142,34 @@ export async function POST(request: Request) {
   let computation;
   try {
     computation = computeLink(ctx);
+    if (sale.product_category_id) {
+      const timeCost = await calculateTimeBasedInventoryCost(admin, {
+        storeId: auth.profile.store_id,
+        categoryId: sale.product_category_id,
+        saleDate: sale.sale_date,
+        saleWeight: sale.weight === null ? null : Number(sale.weight),
+        saleWeightUnit: sale.weight_unit,
+        saleQuantity: Number(sale.quantity ?? 0),
+        excludeSaleId: sale.id,
+      });
+      computation = {
+        ...computation,
+        cost: timeCost.sale_cost,
+        warnings: [
+          ...computation.warnings,
+          `Giá vốn tính theo ngày bán: ${timeCost.average_unit_cost.toLocaleString("vi-VN")} / chỉ`,
+        ],
+      };
+    }
     await persistLink(admin, ctx, computation);
   } catch (e) {
     if (e instanceof InventoryLinkError) {
       return NextResponse.json({ error: e.message }, { status: e.status });
     }
-    throw e;
+    return NextResponse.json(
+      { error: e instanceof Error ? e.message : "Không gắn được tồn kho" },
+      { status: 400 }
+    );
   }
 
   // Recalculate the tax period this sale falls in, plus any later periods in the year.

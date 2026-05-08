@@ -85,12 +85,12 @@ export function InventoryPickerDialog({
     try {
       let successCount = 0;
       let lastData: Record<string, unknown> = {};
-      for (const id of targetSaleIds) {
-        const res = await fetch("/api/inventory/link-sale", {
+      if (isBulk) {
+        const res = await fetch("/api/inventory/link-sales-bulk", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
-            sale_id: id,
+            sale_ids: targetSaleIds,
             inventory_item_id: inventory.id,
             override_manual_cost: override,
           }),
@@ -98,22 +98,43 @@ export function InventoryPickerDialog({
         const data = await res.json().catch(() => ({}));
         lastData = data;
         if (!res.ok) {
-          if (data?.code === "CONFIRM_OVERWRITE_MANUAL_REQUIRED") {
-            if (
-              confirm(
-                "Có giao dịch đã có giá vốn nhập tay. Ghi đè bằng giá vốn từ tồn kho?"
-              )
-            ) {
-              return handleLink(inventory, true);
-            }
-            return;
-          }
           toast.error("Không gắn được", {
             description: data?.error ?? `HTTP ${res.status}`,
           });
           return;
         }
-        successCount += 1;
+        successCount = Number(data?.updated_count ?? 0);
+      } else {
+        for (const id of targetSaleIds) {
+          const res = await fetch("/api/inventory/link-sale", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              sale_id: id,
+              inventory_item_id: inventory.id,
+              override_manual_cost: override,
+            }),
+          });
+          const data = await res.json().catch(() => ({}));
+          lastData = data;
+          if (!res.ok) {
+            if (data?.code === "CONFIRM_OVERWRITE_MANUAL_REQUIRED") {
+              if (
+                confirm(
+                  "Có giao dịch đã có giá vốn nhập tay. Ghi đè bằng giá vốn từ tồn kho?"
+                )
+              ) {
+                return handleLink(inventory, true);
+              }
+              return;
+            }
+            toast.error("Không gắn được", {
+              description: data?.error ?? `HTTP ${res.status}`,
+            });
+            return;
+          }
+          successCount += 1;
+        }
       }
       const warnings = Array.isArray(lastData?.warnings)
         ? (lastData.warnings as string[])
@@ -142,23 +163,23 @@ export function InventoryPickerDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-3xl max-h-[85vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>Gắn với tồn kho</DialogTitle>
+          <DialogTitle>Gắn với rổ tồn kho bình quân</DialogTitle>
           <DialogDescription>
             {saleProductName ? (
               <>
-                Chọn mặt hàng tồn để làm giá vốn cho{" "}
+                Chọn rổ tồn kho cùng nhóm để làm giá vốn bình quân cho{" "}
                 <span className="font-medium">{saleProductName}</span>
                 {saleCategoryName ? ` · ${saleCategoryName}` : ""}.
               </>
             ) : (
-              "Chọn mặt hàng tồn để làm giá vốn cho giao dịch."
+              "Chọn rổ tồn kho bình quân để làm giá vốn cho giao dịch."
             )}
           </DialogDescription>
         </DialogHeader>
 
         <div>
           <Label htmlFor="picker-q" className="text-xs">
-            Tìm theo tên
+            Tìm rổ tồn kho
           </Label>
           <div className="relative">
             <Search className="absolute left-2 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
@@ -166,7 +187,7 @@ export function InventoryPickerDialog({
               id="picker-q"
               value={q}
               onChange={(e) => setQ(e.target.value)}
-              placeholder="Tìm..."
+              placeholder="Tìm rổ..."
               className="pl-7"
             />
           </div>
