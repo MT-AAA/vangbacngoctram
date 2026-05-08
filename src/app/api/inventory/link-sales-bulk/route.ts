@@ -99,16 +99,18 @@ export async function POST(request: Request) {
           purchase_cost_source: "inventory",
           value_added_amount: newValueAdded,
           tax_calculation_status: "complete",
-          cost_calculated_at: new Date().toISOString(),
-          cost_calculation_method: "time_based_inventory_average",
-          cost_calculation_note: `Giá vốn bình quân tại ngày bán: ${cost.average_unit_cost}/chỉ`,
         })
         .eq("id", sale.id)
         .eq("store_id", auth.profile.store_id);
 
       if (updateErr) throw new Error(updateErr.message);
 
-      await admin.from("sales_cost_revisions").insert({
+      const revisionsClient = admin as unknown as {
+        from: (table: "sales_cost_revisions") => {
+          insert: (payload: Record<string, unknown>) => Promise<{ error: { message: string } | null }>;
+        };
+      };
+      const { error: revisionErr } = await revisionsClient.from("sales_cost_revisions").insert({
         store_id: auth.profile.store_id,
         sale_id: sale.id,
         old_purchase_cost_amount: sale.purchase_cost_amount,
@@ -116,9 +118,10 @@ export async function POST(request: Request) {
         old_value_added_amount: sale.value_added_amount,
         new_value_added_amount: newValueAdded,
         reason: "bulk_time_based_inventory_recalculate",
-        metadata: cost,
+        metadata: cost as unknown as Record<string, unknown>,
         recalculated_by: auth.profile.id,
       });
+      if (revisionErr) throw new Error(revisionErr.message);
 
       updated.push(sale.id);
       if (period?.id) affectedPeriods.add(period.id);
@@ -127,7 +130,7 @@ export async function POST(request: Request) {
     }
   }
 
-  for (const periodId of affectedPeriods) {
+  for (const periodId of Array.from(affectedPeriods)) {
     try {
       await recalculateTaxPeriod({ storeId: auth.profile.store_id, periodId, calculatedBy: auth.profile.id });
       await cascadeRecalculateYear({ storeId: auth.profile.store_id, fromPeriodId: periodId, calculatedBy: auth.profile.id });
