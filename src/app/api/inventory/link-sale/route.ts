@@ -101,7 +101,6 @@ export async function POST(request: Request) {
       store_id: sale.store_id,
       quantity: Number(sale.quantity ?? 0),
       weight: sale.weight === null ? null : Number(sale.weight),
-      weight_unit: sale.weight_unit ?? null,
       total_amount: Number(sale.total_amount ?? 0),
       purchase_cost_amount:
         sale.purchase_cost_amount === null
