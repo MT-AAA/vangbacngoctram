@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
+import { categoryBadgeClassName } from "@/components/product-category-badge";
 import {
   Select,
   SelectContent,
@@ -286,7 +287,7 @@ export function CustomerPurchasesClient({
                     </TableCell>
                     <TableCell>
                       {cat ? (
-                        <Badge variant="secondary">{cat.name}</Badge>
+                        <Badge className={categoryBadgeClassName(cat.name)}>{cat.name}</Badge>
                       ) : (
                         <Badge variant="outline">Chưa phân loại</Badge>
                       )}
