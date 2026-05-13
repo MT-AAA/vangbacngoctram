@@ -1,6 +1,6 @@
 import { ShoppingBag, ShoppingCart, Scale, FileText, ArrowDownCircle, AlertTriangle, Sparkles, FileSpreadsheet, CheckCircle2, Boxes, Clock, ArrowRight, Users } from "lucide-react";
 import Link from "next/link";
-import { loadDashboard, type PeriodKey } from "@/lib/dashboard/data";
+import { loadDashboard, buildRange, type PeriodKey } from "@/lib/dashboard/data";
 import { KpiCard } from "@/components/dashboard/kpi-card";
 import { PeriodFilter } from "@/components/dashboard/period-filter";
 import {
@@ -18,26 +18,30 @@ export default async function DashboardPage({
   const isISODate = (s: string | undefined): s is string =>
     typeof s === "string" && /^\d{4}-\d{2}-\d{2}$/.test(s);
 
-  const wantsCustom =
-    searchParams.period === "custom" &&
+  const hasValidRange =
     isISODate(searchParams.from) &&
     isISODate(searchParams.to) &&
-    searchParams.from! <= searchParams.to!;
+    searchParams.from <= searchParams.to;
 
-  const periodKey: PeriodKey = wantsCustom
-    ? "custom"
-    : searchParams.period === "day" ||
-      searchParams.period === "quarter" ||
-      searchParams.period === "year"
-    ? (searchParams.period as PeriodKey)
-    : "month";
+  const periodKey: PeriodKey =
+    searchParams.period === "day" ||
+    searchParams.period === "quarter" ||
+    searchParams.period === "year" ||
+    searchParams.period === "custom"
+      ? (searchParams.period as PeriodKey)
+      : "month";
 
   const data = await loadDashboard(
     periodKey,
-    wantsCustom
-      ? { from: searchParams.from!, to: searchParams.to! }
-      : undefined
+    hasValidRange ? { from: searchParams.from!, to: searchParams.to! } : undefined
   );
+  const displayRange = buildRange(
+    hasValidRange ? "custom" : periodKey,
+    new Date(),
+    hasValidRange ? { from: searchParams.from!, to: searchParams.to! } : undefined
+  );
+  const appliedFrom = searchParams.from ?? data.range.start.toISOString().slice(0, 10);
+  const appliedTo = searchParams.to ?? data.range.end.toISOString().slice(0, 10);
   const { totals, changeVsPrev } = data;
 
   return (
@@ -55,9 +59,11 @@ export default async function DashboardPage({
         </div>
         <PeriodFilter
           active={periodKey}
-          rangeLabel={data.range.label}
-          customFrom={wantsCustom ? searchParams.from : undefined}
-          customTo={wantsCustom ? searchParams.to : undefined}
+          rangeLabel={displayRange.label}
+          from={appliedFrom}
+          to={appliedTo}
+          customFrom={periodKey === "custom" ? appliedFrom : undefined}
+          customTo={periodKey === "custom" ? appliedTo : undefined}
         />
       </div>
 

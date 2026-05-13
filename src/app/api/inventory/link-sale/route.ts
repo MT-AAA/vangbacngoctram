@@ -14,6 +14,7 @@ import {
   recalculateTaxPeriod,
 } from "@/lib/tax/recalculate";
 import { calculateTimeBasedInventoryCost } from "@/lib/inventory/time-based-cost";
+import { recordInventoryMovement } from "@/lib/inventory/movements";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -161,6 +162,26 @@ export async function POST(request: Request) {
       };
     }
     await persistLink(admin, ctx, computation);
+    if (sale.product_category_id) {
+      await recordInventoryMovement(admin, {
+        store_id: auth.profile.store_id,
+        product_category_id: sale.product_category_id,
+        inventory_item_id: inventory.id,
+        source_type: "sale",
+        source_id: sale.id,
+        source_label: sale.id,
+        movement_date: sale.sale_date,
+        weight_delta: -Math.abs(Number(computation.weightDelta ?? computation.qtyDelta ?? 0)),
+        quantity_delta: -Math.abs(Number(computation.qtyDelta ?? 0)),
+        cost_delta: -Math.abs(Number(computation.cost ?? 0)),
+        unit_cost:
+          computation.weightDelta && computation.weightDelta > 0
+            ? computation.cost / computation.weightDelta
+            : null,
+        note: "Giảm tồn khi gắn giao dịch bán với tồn kho",
+        created_by: auth.profile.id,
+      });
+    }
   } catch (e) {
     if (e instanceof InventoryLinkError) {
       return NextResponse.json({ error: e.message }, { status: e.status });

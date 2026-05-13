@@ -5,6 +5,7 @@ import { requireMember, writeAuditLog } from "@/lib/inventory/api";
 import { inventoryBulkLinkSalesSchema } from "@/lib/inventory/bulk-schema";
 import { calculateTimeBasedInventoryCost } from "@/lib/inventory/time-based-cost";
 import { recalculateTaxPeriod, cascadeRecalculateYear } from "@/lib/tax/recalculate";
+import { recordInventoryMovement } from "@/lib/inventory/movements";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -122,6 +123,26 @@ export async function POST(request: Request) {
         recalculated_by: auth.profile.id,
       });
       if (revisionErr) throw new Error(revisionErr.message);
+
+      await recordInventoryMovement(admin, {
+        store_id: auth.profile.store_id,
+        product_category_id: sale.product_category_id,
+        inventory_item_id: input.inventory_item_id,
+        source_type: "sale",
+        source_id: sale.id,
+        source_label: sale.id,
+        movement_date: sale.sale_date,
+        weight_delta: -Math.abs(Number(cost.sale_weight ?? sale.weight ?? sale.quantity ?? 0)),
+        quantity_delta: -Math.abs(Number(sale.quantity ?? 0)),
+        cost_delta: -Math.abs(Number(cost.sale_cost ?? 0)),
+        unit_cost:
+          Number(cost.sale_weight ?? sale.weight ?? sale.quantity ?? 0) > 0
+            ? Number(cost.sale_cost ?? 0) /
+              Number(cost.sale_weight ?? sale.weight ?? sale.quantity ?? 0)
+            : null,
+        note: "Giảm tồn khi gắn hàng loạt giao dịch bán với tồn kho",
+        created_by: auth.profile.id,
+      });
 
       updated.push(sale.id);
       if (period?.id) affectedPeriods.add(period.id);

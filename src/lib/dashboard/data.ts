@@ -45,7 +45,7 @@ export function buildRange(
   const y = ref.getUTCFullYear();
   const m = ref.getUTCMonth();
 
-  if (period === "custom" && custom) {
+  if (custom) {
     const start = parseISODateUTC(custom.from);
     const end = parseISODateUTC(custom.to);
     if (start && end && start.getTime() <= end.getTime()) {

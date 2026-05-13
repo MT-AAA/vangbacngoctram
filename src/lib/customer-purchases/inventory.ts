@@ -26,6 +26,7 @@
 
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@/lib/supabase/database.types";
+import { recordInventoryMovement } from "@/lib/inventory/movements";
 
 type AdminClient = SupabaseClient<Database>;
 
@@ -41,6 +42,7 @@ export type InventoryLinkInput = {
   total_cost: number;
   notes: string | null;
   created_by: string;
+  purchase_date?: string | null;
 };
 
 export async function ensureInventoryItemForPurchase(
@@ -121,6 +123,22 @@ export async function ensureInventoryItemForPurchase(
       .update({ inventory_item_id: existingPool.id })
       .eq("id", input.purchase_id);
 
+    await recordInventoryMovement(admin, {
+      store_id: input.store_id,
+      product_category_id: input.product_category_id,
+      inventory_item_id: existingPool.id,
+      source_type: "customer_purchase",
+      source_id: input.purchase_id,
+      source_label: input.product_name,
+      movement_date: input.purchase_date ?? new Date().toISOString(),
+      weight_delta: addWeight,
+      quantity_delta: addQuantity,
+      cost_delta: addCost,
+      unit_cost: newUnitCost > 0 ? newUnitCost : null,
+      note: input.notes,
+      created_by: input.created_by,
+    });
+
     return { inventory_item_id: existingPool.id };
   }
 
@@ -163,6 +181,22 @@ export async function ensureInventoryItemForPurchase(
     .from("customer_purchases")
     .update({ inventory_item_id: inserted.id })
     .eq("id", input.purchase_id);
+
+  await recordInventoryMovement(admin, {
+    store_id: input.store_id,
+    product_category_id: input.product_category_id,
+    inventory_item_id: inserted.id,
+    source_type: "customer_purchase",
+    source_id: input.purchase_id,
+    source_label: input.product_name,
+    movement_date: input.purchase_date ?? new Date().toISOString(),
+    weight_delta: addWeight,
+    quantity_delta: addQuantity,
+    cost_delta: addCost,
+    unit_cost: unitCost > 0 ? unitCost : null,
+    note: input.notes,
+    created_by: input.created_by,
+  });
 
   return { inventory_item_id: inserted.id };
 }

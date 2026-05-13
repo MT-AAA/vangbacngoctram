@@ -244,6 +244,7 @@ export function CustomerPurchasesClient({
               <TableHead>Sản phẩm</TableHead>
               <TableHead>Phân loại</TableHead>
               <TableHead>Tuổi</TableHead>
+              <TableHead className="text-right">Trọng lượng</TableHead>
               <TableHead className="text-right">SL</TableHead>
               <TableHead className="text-right">Đơn giá</TableHead>
               <TableHead className="text-right">Thành tiền</TableHead>
@@ -255,7 +256,7 @@ export function CustomerPurchasesClient({
           <TableBody>
             {rows.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={11} className="text-center text-sm text-muted-foreground py-8">
+                <TableCell colSpan={12} className="text-center text-sm text-muted-foreground py-8">
                   Chưa có giao dịch nào phù hợp.
                 </TableCell>
               </TableRow>
@@ -292,6 +293,11 @@ export function CustomerPurchasesClient({
                     </TableCell>
                     <TableCell className="text-xs">
                       {r.purity ? PURITY_LABELS[r.purity as Purity] ?? r.purity : "—"}
+                    </TableCell>
+                    <TableCell className="text-right text-sm whitespace-nowrap">
+                      {r.weight !== null && r.weight !== undefined
+                        ? `${formatNumber(Number(r.weight), 4)} ${r.weight_unit ?? ""}`.trim()
+                        : "—"}
                     </TableCell>
                     <TableCell className="text-right text-sm">
                       {formatNumber(Number(r.quantity ?? 0), 4)}

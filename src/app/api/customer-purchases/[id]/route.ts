@@ -129,6 +129,7 @@ export async function PATCH(
         total_cost: Number(after.total_amount ?? 0),
         notes: after.notes ?? null,
         created_by: auth.profile.id,
+        purchase_date: after.purchase_date,
       });
       inventoryItemId = link.inventory_item_id;
     } catch (err) {
