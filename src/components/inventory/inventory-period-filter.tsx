@@ -2,9 +2,8 @@
 
 import { useMemo, useState, useTransition } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { Calendar, ChevronDown, X } from "lucide-react";
-
-export type PeriodKey = "day" | "month" | "quarter" | "year" | "custom";
+import { ChevronDown, X } from "lucide-react";
+import type { PeriodKey } from "@/lib/dashboard/data";
 
 const ITEMS: Array<{ key: Exclude<PeriodKey, "custom">; label: string }> = [
   { key: "day", label: "Ngày" },
@@ -21,20 +20,16 @@ function todayISO(): string {
   return new Date().toISOString().slice(0, 10);
 }
 
-function monthValue(date?: string): string {
-  return date && /^\d{4}-\d{2}-\d{2}$/.test(date)
-    ? date.slice(0, 7)
-    : todayISO().slice(0, 7);
+function monthValue(date: string): string {
+  return /^\d{4}-\d{2}-\d{2}$/.test(date) ? date.slice(0, 7) : todayISO().slice(0, 7);
 }
 
-function yearValue(date?: string): string {
-  return date && /^\d{4}-/.test(date)
-    ? date.slice(0, 4)
-    : String(new Date().getFullYear());
+function yearValue(date: string): string {
+  return /^\d{4}-/.test(date) ? date.slice(0, 4) : String(new Date().getFullYear());
 }
 
-function quarterValue(date?: string): string {
-  const base = date && /^\d{4}-\d{2}-\d{2}$/.test(date) ? date : todayISO();
+function quarterValue(date: string): string {
+  const base = /^\d{4}-\d{2}-\d{2}$/.test(date) ? date : todayISO();
   const month = Number(base.slice(5, 7));
   return String(Math.floor((month - 1) / 3) + 1);
 }
@@ -61,38 +56,27 @@ function yearRange(year: string): { from: string; to: string } {
   return { from: `${year}-01-01`, to: `${year}-12-31` };
 }
 
-export function PeriodFilter({
-  active,
-  rangeLabel,
-  from: appliedFrom,
-  to: appliedTo,
-  customFrom,
-  customTo,
-}: {
+type Props = {
   active: PeriodKey;
+  from: string;
+  to: string;
   rangeLabel: string;
-  from?: string;
-  to?: string;
-  customFrom?: string;
-  customTo?: string;
-}) {
+};
+
+export function InventoryPeriodFilter({ active, from, to, rangeLabel }: Props) {
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const [pending, start] = useTransition();
   const [open, setOpen] = useState(false);
 
-  const baseFrom = appliedFrom || customFrom || todayISO();
-  const baseTo = appliedTo || customTo || baseFrom;
-
-  const [day, setDay] = useState(baseFrom);
-  const [month, setMonth] = useState(monthValue(baseFrom));
-  const [quarterYear, setQuarterYear] = useState(yearValue(baseFrom));
-  const [quarter, setQuarter] = useState(quarterValue(baseFrom));
-  const [year, setYear] = useState(yearValue(baseFrom));
-  const [customStart, setCustomStart] = useState(customFrom || appliedFrom || "");
-  const [customEnd, setCustomEnd] = useState(customTo || appliedTo || "");
-  const [error, setError] = useState<string | null>(null);
+  const [day, setDay] = useState(from || todayISO());
+  const [month, setMonth] = useState(monthValue(from));
+  const [quarterYear, setQuarterYear] = useState(yearValue(from));
+  const [quarter, setQuarter] = useState(quarterValue(from));
+  const [year, setYear] = useState(yearValue(from));
+  const [customFrom, setCustomFrom] = useState(from || "");
+  const [customTo, setCustomTo] = useState(to || "");
 
   const editorLabel = useMemo(() => {
     if (active === "day") return "Chọn ngày";
@@ -121,14 +105,11 @@ export function PeriodFilter({
   };
 
   const apply = () => {
-    setError(null);
     if (active === "day") return pushRange("day", { from: day, to: day });
     if (active === "month") return pushRange("month", monthRange(month));
     if (active === "quarter") return pushRange("quarter", quarterRange(quarterYear, quarter));
     if (active === "year") return pushRange("year", yearRange(year));
-    if (!customStart || !customEnd) return setError("Vui lòng chọn đủ ngày bắt đầu và kết thúc.");
-    if (customStart > customEnd) return setError("Khoảng ngày không hợp lệ.");
-    return pushRange("custom", { from: customStart, to: customEnd });
+    if (customFrom && customTo) return pushRange("custom", { from: customFrom, to: customTo });
   };
 
   return (
@@ -154,8 +135,6 @@ export function PeriodFilter({
           onClick={() => {
             const sp = new URLSearchParams(searchParams.toString());
             sp.set("period", "custom");
-            sp.set("from", customStart || baseFrom);
-            sp.set("to", customEnd || baseTo);
             start(() => router.push(`${pathname}?${sp.toString()}`));
             setOpen(true);
           }}
@@ -176,52 +155,49 @@ export function PeriodFilter({
           onClick={() => setOpen((v) => !v)}
           className="card-cream rounded-xl px-3 h-10 flex items-center gap-2 text-sm text-emerald-900 hover:bg-amber-300/15"
         >
-          <Calendar className="h-4 w-4 text-emerald-900/60" />
           <span className="font-medium">{rangeLabel}</span>
           <ChevronDown className="h-3.5 w-3.5 text-emerald-900/40" />
         </button>
 
         {open ? (
-          <div role="dialog" aria-label="Chọn thời gian" className="absolute right-0 z-30 mt-2 w-[min(92vw,340px)] card-cream rounded-2xl p-4 shadow-xl">
+          <div className="absolute right-0 z-30 mt-2 w-[min(92vw,340px)] card-cream rounded-2xl p-4 shadow-xl">
             <div className="mb-3 flex items-center justify-between">
               <div className="text-sm font-semibold text-forest">{editorLabel}</div>
-              <button type="button" onClick={() => setOpen(false)} className="h-7 w-7 rounded-md hover:bg-amber-300/20 flex items-center justify-center text-emerald-900/70">
+              <button type="button" onClick={() => setOpen(false)} className="h-7 w-7 rounded-md hover:bg-amber-300/20 flex items-center justify-center">
                 <X className="h-4 w-4" />
               </button>
             </div>
 
             {active === "day" ? (
-              <input type="date" value={day} onChange={(e) => setDay(e.target.value)} className="w-full h-10 rounded-lg border border-amber-300/60 bg-white/80 px-3 text-sm text-emerald-950 focus:outline-none focus:ring-2 focus:ring-amber-400/60" />
+              <input type="date" value={day} onChange={(e) => setDay(e.target.value)} className="w-full h-10 rounded-lg border border-amber-300/60 bg-white/80 px-3 text-sm" />
             ) : null}
 
             {active === "month" ? (
-              <input type="month" value={month} onChange={(e) => setMonth(e.target.value)} className="w-full h-10 rounded-lg border border-amber-300/60 bg-white/80 px-3 text-sm text-emerald-950 focus:outline-none focus:ring-2 focus:ring-amber-400/60" />
+              <input type="month" value={month} onChange={(e) => setMonth(e.target.value)} className="w-full h-10 rounded-lg border border-amber-300/60 bg-white/80 px-3 text-sm" />
             ) : null}
 
             {active === "quarter" ? (
               <div className="grid grid-cols-2 gap-2">
-                <select value={quarter} onChange={(e) => setQuarter(e.target.value)} className="h-10 rounded-lg border border-amber-300/60 bg-white/80 px-3 text-sm text-emerald-950 focus:outline-none focus:ring-2 focus:ring-amber-400/60">
+                <select value={quarter} onChange={(e) => setQuarter(e.target.value)} className="h-10 rounded-lg border border-amber-300/60 bg-white/80 px-3 text-sm">
                   <option value="1">Quý 1</option>
                   <option value="2">Quý 2</option>
                   <option value="3">Quý 3</option>
                   <option value="4">Quý 4</option>
                 </select>
-                <input type="number" value={quarterYear} onChange={(e) => setQuarterYear(e.target.value)} className="h-10 rounded-lg border border-amber-300/60 bg-white/80 px-3 text-sm text-emerald-950 focus:outline-none focus:ring-2 focus:ring-amber-400/60" />
+                <input type="number" value={quarterYear} onChange={(e) => setQuarterYear(e.target.value)} className="h-10 rounded-lg border border-amber-300/60 bg-white/80 px-3 text-sm" />
               </div>
             ) : null}
 
             {active === "year" ? (
-              <input type="number" value={year} onChange={(e) => setYear(e.target.value)} className="w-full h-10 rounded-lg border border-amber-300/60 bg-white/80 px-3 text-sm text-emerald-950 focus:outline-none focus:ring-2 focus:ring-amber-400/60" />
+              <input type="number" value={year} onChange={(e) => setYear(e.target.value)} className="w-full h-10 rounded-lg border border-amber-300/60 bg-white/80 px-3 text-sm" />
             ) : null}
 
             {active === "custom" ? (
               <div className="grid gap-2">
-                <input type="date" value={customStart} onChange={(e) => { setCustomStart(e.target.value); setError(null); }} className="w-full h-10 rounded-lg border border-amber-300/60 bg-white/80 px-3 text-sm text-emerald-950 focus:outline-none focus:ring-2 focus:ring-amber-400/60" />
-                <input type="date" value={customEnd} onChange={(e) => { setCustomEnd(e.target.value); setError(null); }} className="w-full h-10 rounded-lg border border-amber-300/60 bg-white/80 px-3 text-sm text-emerald-950 focus:outline-none focus:ring-2 focus:ring-amber-400/60" />
+                <input type="date" value={customFrom} onChange={(e) => setCustomFrom(e.target.value)} className="w-full h-10 rounded-lg border border-amber-300/60 bg-white/80 px-3 text-sm" />
+                <input type="date" value={customTo} onChange={(e) => setCustomTo(e.target.value)} className="w-full h-10 rounded-lg border border-amber-300/60 bg-white/80 px-3 text-sm" />
               </div>
             ) : null}
-
-            {error ? <p className="mt-2 text-xs text-rose-700">{error}</p> : null}
 
             <button type="button" onClick={apply} disabled={pending} className="mt-3 w-full h-10 rounded-lg bg-gold-gradient text-emerald-950 text-sm font-semibold shadow disabled:opacity-60">
               Áp dụng

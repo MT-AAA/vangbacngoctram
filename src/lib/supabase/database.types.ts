@@ -451,6 +451,82 @@ export type Database = {
           },
         ]
       }
+      inventory_movements: {
+        Row: {
+          cost_delta: number
+          created_at: string
+          created_by: string | null
+          id: string
+          inventory_item_id: string | null
+          movement_date: string
+          note: string | null
+          product_category_id: string
+          quantity_delta: number
+          source_id: string | null
+          source_label: string | null
+          source_type: string
+          store_id: string
+          unit_cost: number | null
+          weight_delta: number
+        }
+        Insert: {
+          cost_delta?: number
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          inventory_item_id?: string | null
+          movement_date: string
+          note?: string | null
+          product_category_id: string
+          quantity_delta?: number
+          source_id?: string | null
+          source_label?: string | null
+          source_type: string
+          store_id: string
+          unit_cost?: number | null
+          weight_delta?: number
+        }
+        Update: {
+          cost_delta?: number
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          inventory_item_id?: string | null
+          movement_date?: string
+          note?: string | null
+          product_category_id?: string
+          quantity_delta?: number
+          source_id?: string | null
+          source_label?: string | null
+          source_type?: string
+          store_id?: string
+          unit_cost?: number | null
+          weight_delta?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "inventory_movements_inventory_item_id_fkey"
+            columns: ["inventory_item_id"]
+            isOneToOne: false
+            referencedRelation: "inventory_items"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "inventory_movements_product_category_id_fkey"
+            columns: ["product_category_id"]
+            isOneToOne: false
+            referencedRelation: "product_categories"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "inventory_movements_store_id_fkey"
+            columns: ["store_id"]
+            isOneToOne: false
+            referencedRelation: "stores"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       product_categories: {
         Row: {
           code: string

@@ -7,6 +7,7 @@ import {
   inventoryCreateSchema,
 } from "@/lib/inventory/schema";
 import { categoryCodeToSkuCode } from "@/lib/inventory/sku";
+import { recordInventoryMovement } from "@/lib/inventory/movements";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -147,6 +148,22 @@ export async function POST(request: Request) {
       { status: 500 }
     );
   }
+
+  await recordInventoryMovement(admin, {
+    store_id: auth.profile.store_id,
+    product_category_id: input.category_id,
+    inventory_item_id: inserted.id,
+    source_type: input.source_type === "adjustment" ? "adjustment" : "manual",
+    source_id: inserted.id,
+    source_label: input.product_name,
+    movement_date: input.imported_at ?? new Date().toISOString(),
+    weight_delta: Number(currentWeight ?? 0),
+    quantity_delta: Number(currentQty ?? 0),
+    cost_delta: Number(input.purchase_cost_amount ?? 0),
+    unit_cost: input.purchase_unit_price ?? null,
+    note: input.note ?? null,
+    created_by: auth.profile.id,
+  });
 
   await writeAuditLog(admin, {
     store_id: auth.profile.store_id,

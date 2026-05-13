@@ -94,6 +94,7 @@ export async function POST(request: Request) {
         total_cost: input.total_buy_amount,
         notes: input.notes,
         created_by: auth.profile.id,
+        purchase_date: input.purchase_date,
       });
       inventoryItemId = link.inventory_item_id;
     } catch (err) {
