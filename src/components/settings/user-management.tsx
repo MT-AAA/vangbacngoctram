@@ -105,8 +105,15 @@ export function UserManagement({
 }) {
   const router = useRouter();
   const [submitting, setSubmitting] = useState<string | null>(null);
+  const [creating, setCreating] = useState(false);
   const [confirm, setConfirm] = useState<PendingAction | null>(null);
   const [filter, setFilter] = useState<Filter>("active");
+  const [newUser, setNewUser] = useState({
+    full_name: "",
+    email: "",
+    password: "",
+    role: "viewer" as Role,
+  });
 
   const activeAdminCount = useMemo(
     () =>
@@ -232,6 +239,28 @@ export function UserManagement({
       router.refresh();
     } finally {
       setSubmitting(null);
+    }
+  };
+
+  const createUser = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setCreating(true);
+    try {
+      const res = await fetch("/api/users", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(newUser),
+      });
+      const payload: { error?: string } = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        toast.error(payload.error ?? "Không tạo được tài khoản.");
+        return;
+      }
+      toast.success("Đã tạo tài khoản mới.");
+      setNewUser({ full_name: "", email: "", password: "", role: "viewer" });
+      router.refresh();
+    } finally {
+      setCreating(false);
     }
   };
 
@@ -395,20 +424,65 @@ export function UserManagement({
         </div>
       </div>
 
-      {/* Invitation placeholder */}
-      <div className="card-cream rounded-2xl p-4 lg:p-5 flex items-start gap-3">
-        <span className="icon-rim h-10 w-10 rounded-full flex items-center justify-center shrink-0">
-          <UserCog className="h-4 w-4 text-amber-700" />
-        </span>
-        <div className="text-sm text-emerald-900/85 space-y-1">
-          <div className="font-semibold text-forest">Mời người dùng mới</div>
-          <p>Tính năng mời người dùng sẽ được bổ sung sau.</p>
-          <p className="text-[12px] text-emerald-900/60">
-            Tạm thời, vui lòng yêu cầu người dùng mới đăng ký bằng email và
-            liên hệ quản trị viên để được gán vào cửa hàng.
-          </p>
+      <form
+        onSubmit={createUser}
+        className="card-cream rounded-2xl p-4 lg:p-5 space-y-4"
+      >
+        <div className="flex items-start gap-3">
+          <span className="icon-rim h-10 w-10 rounded-full flex items-center justify-center shrink-0">
+            <UserCog className="h-4 w-4 text-amber-700" />
+          </span>
+          <div>
+            <div className="font-semibold text-forest">Tạo tài khoản mới</div>
+            <p className="text-[12px] text-emerald-900/60">
+              Admin tạo tài khoản đăng nhập cho người dùng với quyền xem hoặc chỉnh sửa.
+            </p>
+          </div>
         </div>
-      </div>
+
+        <div className="grid grid-cols-1 gap-3 md:grid-cols-4">
+          <input
+            className="h-10 rounded-lg border border-amber-300/60 bg-white/75 px-3 text-sm outline-none focus:ring-2 focus:ring-amber-400/40"
+            placeholder="Họ tên"
+            value={newUser.full_name}
+            onChange={(e) => setNewUser((u) => ({ ...u, full_name: e.target.value }))}
+            required
+          />
+          <input
+            className="h-10 rounded-lg border border-amber-300/60 bg-white/75 px-3 text-sm outline-none focus:ring-2 focus:ring-amber-400/40"
+            type="email"
+            placeholder="Email đăng nhập"
+            value={newUser.email}
+            onChange={(e) => setNewUser((u) => ({ ...u, email: e.target.value }))}
+            required
+          />
+          <input
+            className="h-10 rounded-lg border border-amber-300/60 bg-white/75 px-3 text-sm outline-none focus:ring-2 focus:ring-amber-400/40"
+            type="text"
+            placeholder="Mật khẩu"
+            value={newUser.password}
+            onChange={(e) => setNewUser((u) => ({ ...u, password: e.target.value }))}
+            required
+          />
+          <Select
+            value={newUser.role}
+            onValueChange={(role) => setNewUser((u) => ({ ...u, role: role as Role }))}
+          >
+            <SelectTrigger className="h-10 bg-white/75 border-amber-300/60">
+              <SelectValue placeholder="Chọn quyền" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="viewer">Quyền xem</SelectItem>
+              <SelectItem value="staff">Quyền chỉnh sửa</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+
+        <Button type="submit" disabled={creating}>
+          {creating ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+          Tạo tài khoản
+        </Button>
+      </form>
 
       <Dialog
         open={confirm !== null}

@@ -6,7 +6,6 @@ import { PeriodFilter } from "@/components/dashboard/period-filter";
 import {
   RevenueTaxLineChart,
   CategoryDonut,
-  VATBarChart,
 } from "@/components/dashboard/charts";
 import { formatVND, formatVNDate, formatNumber } from "@/lib/utils";
 
@@ -171,6 +170,7 @@ export default async function DashboardPage({
                 it.quantity > 0
                   ? `${formatVND(it.amount / it.quantity)} / ${it.qty_unit}`
                   : "—",
+              taxAmountLabel: formatVND(it.taxAmount),
             }))}
             purchases={data.purchasesByCategory.map((it) => ({
               ...it,
@@ -234,22 +234,24 @@ export default async function DashboardPage({
         <div className="card-cream rounded-2xl p-4 lg:p-5">
           <div className="flex items-center justify-between mb-2">
             <h2 className="text-base font-semibold text-forest">
-              Thuế GTGT theo kỳ
+              Báo cáo tồn kho
             </h2>
             <span className="text-xs text-emerald-900/60">
-              {data.vatByPeriod.length} kỳ gần nhất
+              Theo bộ lọc hiện tại
             </span>
           </div>
-          {data.vatByPeriod.length === 0 ? (
-            <div className="h-[280px] flex items-center justify-center text-sm text-emerald-900/55">
-              Chưa có báo cáo kỳ nào.{" "}
-              <Link href="/tax-reports" className="ml-1 underline">
-                Tạo kỳ
-              </Link>
-            </div>
-          ) : (
-            <VATBarChart data={data.vatByPeriod} />
-          )}
+          <InventoryReportCard
+            data={data.inventorySnapshot.map((it) => {
+              const cost =
+                it.average_unit_cost === null ? 0 : it.average_unit_cost * it.quantity;
+              return {
+                category: it.category,
+                quantity: it.quantity,
+                qty_unit: it.qty_unit,
+                cost,
+              };
+            })}
+          />
         </div>
       </div>
 
@@ -576,12 +578,63 @@ export default async function DashboardPage({
   );
 }
 
+type InventoryReportItem = {
+  category: string;
+  quantity: number;
+  qty_unit: string;
+  cost: number;
+};
+
+function InventoryReportCard({ data }: { data: InventoryReportItem[] }) {
+  const totalQuantity = data.reduce((sum, item) => sum + item.quantity, 0);
+  const totalCost = data.reduce((sum, item) => sum + item.cost, 0);
+
+  return (
+    <div className="h-[280px] space-y-3 pt-2">
+      <div className="rounded-2xl border border-amber-300/45 bg-gradient-to-br from-amber-50/80 to-white px-4 py-3">
+        <div className="text-[11px] uppercase tracking-wide text-emerald-900/55">
+          Tổng giá vốn tồn kho
+        </div>
+        <div className="mt-1 truncate text-xl font-bold leading-tight text-gold sm:text-2xl">
+          {formatVND(totalCost)}
+        </div>
+        <div className="mt-1 truncate text-xs text-emerald-900/60">
+          TL tồn hiện có: <span className="font-semibold text-forest">{formatNumber(totalQuantity, 2)} chỉ</span>
+        </div>
+      </div>
+
+      <div className="space-y-2">
+        {data.map((item) => (
+          <div
+            key={item.category}
+            className="grid grid-cols-[minmax(0,1fr)_minmax(0,140px)] gap-2 rounded-xl border border-amber-200/70 bg-white/65 px-3 py-2"
+          >
+            <div className="min-w-0">
+              <div className="truncate text-sm font-semibold text-forest">{item.category}</div>
+              <div className="truncate text-xs text-emerald-900/55">TL tồn hiện có</div>
+            </div>
+            <div className="min-w-0 text-right">
+              <div className="truncate text-sm font-bold leading-tight text-gold sm:text-[15px]">
+                {formatVND(item.cost)}
+              </div>
+              <div className="truncate text-[11px] font-semibold text-emerald-900/60 sm:text-xs">
+                {formatNumber(item.quantity, 2)} {item.qty_unit}
+              </div>
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 type GoodsOverviewItem = {
   category: string;
   qty_unit: string;
   quantity: number;
   totalAmountLabel: string;
   averageLabel: string;
+  taxAmountLabel?: string;
 };
 
 function GoodsOverviewTable({
@@ -641,6 +694,15 @@ function GoodsOverviewTable({
                       <MetricBox label="Tổng tiền" value={item.totalAmountLabel} />
                       <MetricBox label="Đơn giá BQ" value={item.averageLabel} strong />
                     </div>
+                    {item.taxAmountLabel && (
+                      <div className="mt-1.5 overflow-hidden rounded-xl border border-rose-200/70 bg-rose-50/55">
+                        <MetricBox
+                          label="Thuế phải nộp"
+                          value={item.taxAmountLabel}
+                          strong
+                        />
+                      </div>
+                    )}
                   </div>
                 );
               })}
