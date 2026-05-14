@@ -1,4 +1,5 @@
 import { createClient } from "@/lib/supabase/server";
+import { computeVAT } from "@/lib/tax/vat-engine";
 import {
   loadDashboardCustomerPurchases,
   type DashboardCustomerPurchaseSummary,
@@ -247,6 +248,7 @@ export type DashboardSummary = {
     quantity: number;
     weight_kg: number;
     amount: number;
+    taxAmount: number;
   }>;
   purchasesByCategory: Array<{
     category: string;
@@ -289,7 +291,10 @@ export async function loadDashboard(
     { data: categories },
     { data: recent },
     { data: imports },
-    { data: inventory },
+    { data: inventoryAlertsSource },
+    { data: inventoryMovements },
+    { data: taxSettings },
+    { data: priorReport },
     customerPurchases,
   ] = await Promise.all([
     supabase
@@ -362,10 +367,23 @@ export async function loadDashboard(
       .limit(4),
     supabase
       .from("inventory_items")
-      .select(
-        "current_quantity, current_weight, quantity_on_hand, weight, purchase_cost_amount, is_tax_cost_source, category:product_categories(name, code)"
-      )
+      .select("current_quantity, purchase_cost_amount, is_tax_cost_source")
       .not("status", "in", "(archived,sold)"),
+    supabase
+      .from("inventory_movements")
+      .select(
+        "source_type, weight_delta, quantity_delta, cost_delta, category:product_categories(name, code)"
+      )
+      .or(`source_type.eq.opening_balance,movement_date.lte.${toISOEnd}`),
+    supabase.from("tax_settings").select("vat_rate").maybeSingle(),
+    supabase
+      .from("tax_reports")
+      .select("negative_carried_out, period:tax_periods!inner(year, end_date)")
+      .lt("period.end_date", fromISO)
+      .eq("period.year", range.start.getUTCFullYear())
+      .order("end_date", { referencedTable: "tax_periods", ascending: false })
+      .limit(1)
+      .maybeSingle(),
     loadDashboardCustomerPurchases(supabase, {
       from: fromISO,
       to: toISOEnd,
@@ -381,9 +399,22 @@ export async function loadDashboard(
     (s, t) => s + Number(t.purchase_cost_amount ?? 0),
     0
   );
-  const valueAdded = totalSales - totalCost;
-  const estimatedVAT = Math.max(0, valueAdded) * 0.1;
-  const negativeCarriedOut = Number(latestReport?.negative_carried_out ?? 0);
+  const vatRate = Number(taxSettings?.vat_rate ?? 10);
+  const negativeCarriedIn = Number(priorReport?.negative_carried_out ?? 0);
+  const vatResult = computeVAT({
+    aggregate: {
+      total_sales_amount: totalSales,
+      total_purchase_cost_amount: totalCost,
+      total_transactions: totalCount ?? 0,
+      transactions_missing_purchase_cost: missingCount ?? 0,
+      transactions_estimated: estimatedCount ?? 0,
+    },
+    negative_carried_in: negativeCarriedIn,
+    vat_rate: vatRate,
+  });
+  const valueAdded = vatResult.value_added_amount;
+  const estimatedVAT = vatResult.vat_amount;
+  const negativeCarriedOut = vatResult.negative_carried_out;
 
   const prevTotalSales = (prevTxns ?? []).reduce(
     (s, t) => s + Number(t.total_amount ?? 0),
@@ -393,8 +424,19 @@ export async function loadDashboard(
     (s, t) => s + Number(t.purchase_cost_amount ?? 0),
     0
   );
-  const prevValueAdded = prevTotalSales - prevTotalCost;
-  const prevEstVAT = Math.max(0, prevValueAdded) * 0.1;
+  const prevVatResult = computeVAT({
+    aggregate: {
+      total_sales_amount: prevTotalSales,
+      total_purchase_cost_amount: prevTotalCost,
+      total_transactions: prevTxns?.length ?? 0,
+      transactions_missing_purchase_cost: 0,
+      transactions_estimated: 0,
+    },
+    negative_carried_in: 0,
+    vat_rate: vatRate,
+  });
+  const prevValueAdded = prevVatResult.value_added_amount;
+  const prevEstVAT = prevVatResult.vat_amount;
   const prevNegativeCarriedOut = Number(prevReport?.negative_carried_out ?? 0);
 
   const pct = (cur: number, prev: number): number | null => {
@@ -477,28 +519,31 @@ export async function loadDashboard(
     };
   });
 
-  // Inventory snapshot (group by category) — uses Phase 2G `current_*`
-  // columns when present, falling back to legacy `quantity_on_hand` / `weight`
-  // for rows that haven't been migrated yet. Also derives the alert counters
-  // for the dashboard tile.
+  // Inventory snapshot (group by category) is the running balance from the
+  // movement ledger: opening balance + customer purchases - sales/adjustments.
+  // Do not read `inventory_items.current_weight` here because average-pool rows
+  // can become stale if sales are recalculated after the pool was created.
   type InvAgg = { qty: number; weight: number; value: number; unit: string };
   const invMap = new Map<string, InvAgg>();
   let missingCostAlert = 0;
   let lowStockAlert = 0;
-  for (const it of inventory ?? []) {
-    const c = Array.isArray(it.category) ? it.category[0] : it.category;
-    const name = c?.name ?? "Khác";
-    const unit = "chỉ";
-    const existing = invMap.get(name) ?? { qty: 0, weight: 0, value: 0, unit };
-    const qty = Number(it.current_quantity ?? it.quantity_on_hand ?? 0);
-    const weight = Number(it.current_weight ?? it.weight ?? 0);
-    const value = Number(it.purchase_cost_amount ?? 0);
-    existing.qty += qty;
-    existing.weight += weight;
-    existing.value += value;
-    existing.unit = unit;
-    invMap.set(name, existing);
 
+  for (const movement of inventoryMovements ?? []) {
+    const c = Array.isArray(movement.category)
+      ? movement.category[0]
+      : movement.category;
+    const name = c?.name ?? "Khác";
+    if (!order.includes(name)) continue;
+
+    const existing = invMap.get(name) ?? { qty: 0, weight: 0, value: 0, unit: "chỉ" };
+    existing.qty += Number(movement.quantity_delta ?? movement.weight_delta ?? 0);
+    existing.weight += Number(movement.weight_delta ?? movement.quantity_delta ?? 0);
+    existing.value += Number(movement.cost_delta ?? 0);
+    invMap.set(name, existing);
+  }
+
+  for (const it of inventoryAlertsSource ?? []) {
+    const qty = Number(it.current_quantity ?? 0);
     if (it.is_tax_cost_source && it.purchase_cost_amount === null) {
       missingCostAlert += 1;
     }
@@ -521,7 +566,14 @@ export async function loadDashboard(
       };
     });
 
-  type MovementAgg = { quantity: number; weight: number; amount: number; unit: string };
+  type MovementAgg = {
+    quantity: number;
+    weight: number;
+    amount: number;
+    unit: string;
+    costAmount?: number;
+    taxAmount?: number;
+  };
   const toMovementRows = (map: Map<string, MovementAgg>) =>
     order.map((category) => {
       const v = map.get(category) ?? {
@@ -529,6 +581,7 @@ export async function loadDashboard(
         weight: 0,
         amount: 0,
         unit: "chỉ",
+        taxAmount: 0,
       };
       const gramsPerUnit = v.unit === "lượng" ? 37.5 : 3.75;
       return {
@@ -537,6 +590,7 @@ export async function loadDashboard(
         quantity: v.weight || v.quantity,
         weight_kg: ((v.weight || v.quantity) * gramsPerUnit) / 1000,
         amount: v.amount,
+        taxAmount: v.taxAmount ?? 0,
       };
     });
 
@@ -555,6 +609,8 @@ export async function loadDashboard(
     existing.quantity += Number(t.quantity ?? 0);
     existing.weight += Number(t.weight ?? t.quantity ?? 0);
     existing.amount += Number(t.total_amount ?? 0);
+    existing.costAmount =
+      (existing.costAmount ?? 0) + Number(t.purchase_cost_amount ?? 0);
     existing.unit = unit;
     salesMovementMap.set(category, existing);
   }
@@ -577,6 +633,10 @@ export async function loadDashboard(
     existing.unit = unit;
     purchaseMovementMap.set(category, existing);
   }
+
+  salesMovementMap.forEach((item) => {
+    item.taxAmount = (item.amount - (item.costAmount ?? 0)) * 0.1;
+  });
 
   const salesByCategory = toMovementRows(salesMovementMap);
   const purchasesByCategory = toMovementRows(purchaseMovementMap);

@@ -4,9 +4,8 @@ import { Coins } from "lucide-react";
 export default function LoginPage({
   searchParams,
 }: {
-  searchParams: { next?: string; mode?: string; error?: string };
+  searchParams: { next?: string; error?: string };
 }) {
-  const mode = searchParams.mode === "signup" ? "signup" : "signin";
   return (
     <div className="min-h-screen flex items-center justify-center bg-muted/40 p-4">
       <div className="w-full max-w-md space-y-6">
@@ -21,7 +20,7 @@ export default function LoginPage({
             Hệ thống quản lý cửa hàng vàng bạc đá quý
           </p>
         </div>
-        <LoginForm initialMode={mode} next={searchParams.next} />
+        <LoginForm next={searchParams.next} />
       </div>
     </div>
   );
