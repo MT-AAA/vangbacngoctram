@@ -16,6 +16,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
+import { categoryBadgeClassName } from "@/components/product-category-badge";
 import { formatVND, formatVNDate, formatNumber } from "@/lib/utils";
 import { SalesFilters } from "@/components/sales/sales-filters";
 import { SalesPagination } from "@/components/sales/sales-pagination";
@@ -267,7 +268,7 @@ export default async function SalesPage({
                           </TableCell>
                           <TableCell>
                             {cat ? (
-                              <Badge variant="secondary">{cat.name}</Badge>
+                              <Badge className={categoryBadgeClassName(cat.name)}>{cat.name}</Badge>
                             ) : (
                               <Badge variant="outline">Chưa phân loại</Badge>
                             )}

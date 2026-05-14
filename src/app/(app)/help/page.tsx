@@ -186,13 +186,13 @@ const SECTIONS: Section[] = [
         <p>Trang này dùng để đưa file báo cáo bán hàng từ phần mềm ngoài vào hệ thống.</p>
         <ul className="list-disc space-y-1 pl-5">
           <li>Chọn đúng file Excel bán hàng chi tiết.</li>
-          <li>Xem preview trước khi ghi dữ liệu.</li>
-          <li>Sau khi commit, dữ liệu xuất hiện ở trang Bán hàng.</li>
+          <li>Xem trước dữ liệu trước khi lưu vào hệ thống.</li>
+          <li>Sau khi lưu, dữ liệu xuất hiện ở trang Bán hàng.</li>
           <li>Hệ thống tự nhận diện giao dịch trùng để tránh nhân đôi dữ liệu.</li>
         </ul>
         <NoteBox>
-          Nếu nhập sai file, vào <strong>Lịch sử import</strong> để kiểm tra và dùng
-          chức năng rollback nếu file đó cần hủy.
+          Nếu nhập sai file, vào <strong>Lịch sử nhập gần đây</strong> để kiểm tra và dùng
+          chức năng xóa dữ liệu của file đó nếu cần hủy.
         </NoteBox>
       </div>
     ),
@@ -214,6 +214,17 @@ const SECTIONS: Section[] = [
           Khi gặp dòng <strong>Thiếu giá vốn</strong>, bấm <strong>Xử lý</strong> để
           gắn với mặt hàng tồn kho hoặc nhập/chỉnh giá vốn phù hợp.
         </NoteBox>
+        <div className="rounded-xl border border-emerald-200 bg-white/70 p-3">
+          <p className="font-semibold text-forest">Cách hệ thống tính giá vốn khi gắn tồn kho</p>
+          <ul className="mt-2 list-disc space-y-1 pl-5">
+            <li>Hệ thống chia tồn kho bình quân thành 3 rổ: <strong>Vàng ta</strong>, <strong>Vàng tây</strong> và <strong>Bạc</strong>.</li>
+            <li>Khi gắn một giao dịch bán với tồn kho, hệ thống lấy <strong>giá vốn bình quân của rổ tại đúng ngày bán</strong>.</li>
+            <li>Giá bình quân chỉ tính tồn đầu kỳ và các giao dịch mua từ khách có ngày <strong>trước hoặc bằng ngày bán</strong>.</li>
+            <li>Nếu sau này nhập thêm mua từ khách với ngày mua trước/ngày bán, các giao dịch bán bị ảnh hưởng sẽ được tự tính lại.</li>
+            <li>Nếu mua từ khách có ngày sau ngày bán, giao dịch bán trước đó không bị thay đổi.</li>
+            <li>Ứng dụng chỉ hỗ trợ phần doanh thu bán ra, mua vào và giá vốn; chi phí, hóa đơn chứng từ và quyết toán đầy đủ do kế toán xử lý.</li>
+          </ul>
+        </div>
         <ExampleBox>
           <p>
             Bán nhẫn 2 chỉ giá 36.000.000đ. Nếu gắn với tồn kho có giá vốn

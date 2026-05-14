@@ -53,7 +53,7 @@ export default async function IssuesPage() {
       href: "/issues/missing-cost",
       label: "Thiếu giá vốn",
       description:
-        "Dòng bán hàng chưa có purchase_cost_amount. Cần nhập tay hoặc đánh dấu bỏ qua.",
+        "Dòng bán hàng chưa có giá mua vào để tính lãi và thuế. Cần gắn với rổ tồn kho hoặc nhập giá vốn thủ công.",
       icon: AlertTriangle,
       count: counts.missingCost,
       tone: "destructive",
@@ -62,7 +62,7 @@ export default async function IssuesPage() {
       href: "/issues/unclassified",
       label: "Chưa phân loại",
       description:
-        "Sản phẩm chưa thuộc nhóm Vàng ta / Vàng tây / Bạc. Có thể tạo quy tắc từ tên.",
+        "Sản phẩm chưa được xếp vào nhóm Vàng ta / Vàng tây / Bạc. Có thể tạo quy tắc tự động từ tên hàng.",
       icon: Tag,
       count: counts.unclassified,
       tone: "warning",
@@ -71,7 +71,7 @@ export default async function IssuesPage() {
       href: "/issues/estimated",
       label: "Đang tính ước tính",
       description:
-        "Giá vốn lấy theo giá mua bình quân từ khách. Có thể thay bằng giá vốn thực khi nhập tay.",
+        "Giá vốn đang tạm tính theo giá mua bình quân. Có thể gắn tồn kho hoặc nhập giá đúng nếu cần.",
       icon: Sparkles,
       count: counts.estimated,
       tone: "warning",
@@ -80,7 +80,7 @@ export default async function IssuesPage() {
       href: "/issues/negative-vat",
       label: "Kỳ thuế GTGT âm",
       description:
-        "Kỳ tính thuế có giá trị gia tăng âm chuyển sang kỳ sau. Theo dõi để bù trừ.",
+        "Kỳ này mua vào lớn hơn bán ra nên phần âm sẽ được chuyển sang kỳ sau để theo dõi.",
       icon: ArrowDownCircle,
       count: counts.negativeVAT,
       tone: "info",
@@ -89,7 +89,7 @@ export default async function IssuesPage() {
       href: "/issues/reconciliation",
       label: "Đối soát file nhập",
       description:
-        "File nhập có dòng lỗi hoặc số dòng commit khớp không khớp với số dòng đọc.",
+        "File nhập có dòng lỗi hoặc số dòng đã lưu chưa khớp với số dòng đọc được từ Excel.",
       icon: FileSpreadsheet,
       count: counts.reconciliationWarnings,
       tone: "info",
@@ -98,7 +98,7 @@ export default async function IssuesPage() {
       href: "/issues/duplicates",
       label: "Hóa đơn trùng / nghi ngờ",
       description:
-        "Cùng dòng sản phẩm trên cùng hóa đơn, hoặc cùng số hóa đơn trên nhiều ký hiệu.",
+        "Có dòng sản phẩm hoặc số hóa đơn có dấu hiệu bị nhập trùng. Cần kiểm tra trước khi báo cáo.",
       icon: Copy,
       count: counts.duplicates,
       tone: "warning",
@@ -107,7 +107,7 @@ export default async function IssuesPage() {
       href: "/inventory?missing_cost=1",
       label: "Tồn thiếu giá mua",
       description:
-        "Mặt hàng tồn dùng làm giá vốn nhưng chưa có purchase_cost_amount.",
+        "Mặt hàng tồn kho chưa có tổng giá mua vào, nên chưa đủ dữ liệu để làm giá vốn khi bán.",
       icon: Package,
       count: inventoryCounts.missingCost,
       tone: "warning",

@@ -16,6 +16,7 @@ import {
 import { Loader2, Search } from "lucide-react";
 import { toast } from "sonner";
 import { formatNumber, formatVND } from "@/lib/utils";
+import { categoryBadgeClassName } from "@/components/product-category-badge";
 import { STATUS_LABELS } from "@/lib/inventory/schema";
 import type { InventoryRow } from "@/lib/inventory/queries";
 
@@ -205,8 +206,6 @@ export function InventoryPickerDialog({
             </div>
           ) : (
             items.map((it) => {
-              const sameCategory =
-                saleCategoryId && it.product_category_id === saleCategoryId;
               return (
                 <div
                   key={it.id}
@@ -216,9 +215,7 @@ export function InventoryPickerDialog({
                     <div className="flex flex-wrap items-center gap-2">
                       <span className="truncate font-medium">{it.name}</span>
                       {it.category ? (
-                        <Badge
-                          variant={sameCategory ? "success" : "outline"}
-                        >
+                        <Badge className={categoryBadgeClassName(it.category.name)}>
                           {it.category.name}
                         </Badge>
                       ) : null}

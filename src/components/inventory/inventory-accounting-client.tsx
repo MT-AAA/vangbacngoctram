@@ -10,6 +10,7 @@ import {
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { InventoryPeriodFilter } from "@/components/inventory/inventory-period-filter";
+import { categoryBadgeClassName } from "@/components/product-category-badge";
 import { formatNumber, formatVND } from "@/lib/utils";
 import type {
   InventoryDetailGroup,
@@ -59,7 +60,7 @@ export function InventoryAccountingClient({ report, filters }: Props) {
             {report.rows.map((row) => (
               <TableRow key={row.category_id} className="hover:bg-amber-50/50">
                 <TableCell className="font-semibold">Tồn kho bình quân - {row.category_name}</TableCell>
-                <TableCell><Badge variant="secondary">{row.category_name}</Badge></TableCell>
+                <TableCell><Badge className={categoryBadgeClassName(row.category_name)}>{row.category_name}</Badge></TableCell>
                 <TableCell className="text-right">{formatNumber(row.opening_weight, 4)} chỉ</TableCell>
                 <TableCell className="text-right text-emerald-700">+{formatNumber(row.period_in_weight, 4)} chỉ</TableCell>
                 <TableCell className="text-right text-rose-700">-{formatNumber(row.period_out_weight, 4)} chỉ</TableCell>

@@ -34,59 +34,33 @@ export async function calculateTimeBasedInventoryCost(
     throw new Error("Giao dịch bán thiếu khối lượng để tính giá vốn theo thời gian");
   }
 
-  const [{ data: openingRows, error: openingErr }, { data: purchases, error: purchaseErr }, { data: soldRows, error: soldErr }] = await Promise.all([
-    client
-      .from("inventory_items")
-      .select("initial_weight, current_weight, purchase_cost_amount, source_reference, imported_at")
-      .eq("store_id", args.storeId)
-      .eq("product_category_id", args.categoryId)
-      .or("source_reference.eq.TONDAU-Q2-2026,source_reference.ilike.POOL-%"),
-    client
-      .from("customer_purchases")
-      .select("id, weight, weight_unit, quantity, total_amount, purchase_date, becomes_inventory")
-      .eq("store_id", args.storeId)
-      .eq("product_category_id", args.categoryId)
-      .eq("becomes_inventory", true)
-      .lte("purchase_date", args.saleDate),
-    client
-      .from("sales_transactions")
-      .select("id, weight, weight_unit, quantity, purchase_cost_amount, sale_date")
-      .eq("store_id", args.storeId)
-      .eq("product_category_id", args.categoryId)
-      .eq("purchase_cost_source", "inventory")
-      .lt("sale_date", args.saleDate),
-  ]);
+  const { data: movements, error } = await client
+    .from("inventory_movements")
+    .select("source_type, source_id, movement_date, weight_delta, cost_delta")
+    .eq("store_id", args.storeId)
+    .eq("product_category_id", args.categoryId)
+    .lte("movement_date", args.saleDate)
+    .order("movement_date", { ascending: true });
 
-  if (openingErr) throw new Error(openingErr.message);
-  if (purchaseErr) throw new Error(purchaseErr.message);
-  if (soldErr) throw new Error(soldErr.message);
+  if (error) throw new Error(error.message);
 
-  const inventoryRows = openingRows ?? [];
-  const explicitOpening = inventoryRows.filter((r) =>
-    r.source_reference?.startsWith("TONDAU")
+  const relevantMovements = (movements ?? []).filter(
+    (movement) =>
+      !(
+        args.excludeSaleId &&
+        movement.source_type === "sale" &&
+        movement.source_id === args.excludeSaleId
+      )
   );
-  const pooledOpening = inventoryRows.filter((r) =>
-    r.source_reference?.startsWith("POOL-")
+
+  const availableWeight = relevantMovements.reduce(
+    (sum, movement) => sum + Number(movement.weight_delta ?? 0),
+    0
   );
-  const opening = explicitOpening.length > 0 ? explicitOpening : pooledOpening;
-  const openingWeight = opening.reduce((sum, r) => sum + Number(r.initial_weight ?? r.current_weight ?? 0), 0);
-  const openingCost = opening.reduce((sum, r) => sum + Number(r.purchase_cost_amount ?? 0), 0);
-
-  const purchaseWeight = (purchases ?? []).reduce((sum, r) => {
-    const weight = r.weight ? toChi(Number(r.weight), r.weight_unit ?? "chỉ") : Number(r.quantity ?? 0);
-    return sum + Number(weight || 0);
-  }, 0);
-  const purchaseCost = (purchases ?? []).reduce((sum, r) => sum + Number(r.total_amount ?? 0), 0);
-
-  const soldBefore = (soldRows ?? []).filter((r) => r.id !== args.excludeSaleId);
-  const soldWeight = soldBefore.reduce((sum, r) => {
-    const weight = r.weight ? toChi(Number(r.weight), r.weight_unit ?? "chỉ") : Number(r.quantity ?? 0);
-    return sum + Number(weight || 0);
-  }, 0);
-  const soldCost = soldBefore.reduce((sum, r) => sum + Number(r.purchase_cost_amount ?? 0), 0);
-
-  const availableWeight = openingWeight + purchaseWeight - soldWeight;
-  const availableCost = openingCost + purchaseCost - soldCost;
+  const availableCost = relevantMovements.reduce(
+    (sum, movement) => sum + Number(movement.cost_delta ?? 0),
+    0
+  );
   if (availableWeight <= 0 || availableCost <= 0) {
     throw new Error("Không đủ dữ liệu tồn kho tại ngày bán để tính giá vốn");
   }

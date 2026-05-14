@@ -13,6 +13,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
+import { categoryBadgeClassName } from "@/components/product-category-badge";
 import {
   Table,
   TableBody,
@@ -349,7 +350,7 @@ export function InventoryClient({
                     </TableCell>
                     <TableCell>
                       {r.category ? (
-                        <Badge variant="secondary">{r.category.name}</Badge>
+                        <Badge className={categoryBadgeClassName(r.category.name)}>{r.category.name}</Badge>
                       ) : (
                         <Badge variant="outline">Chưa phân loại</Badge>
                       )}
