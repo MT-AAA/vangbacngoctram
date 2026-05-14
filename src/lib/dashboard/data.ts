@@ -285,7 +285,6 @@ export async function loadDashboard(
     { count: missingCount },
     { count: estimatedCount },
     { count: unclassifiedCount },
-    { data: latestReport },
     { data: prevReport },
     { data: vatPeriods },
     { data: categories },
@@ -333,12 +332,6 @@ export async function loadDashboard(
       .is("product_category_id", null)
       .gte("sale_date", fromISO)
       .lte("sale_date", toISOEnd),
-    supabase
-      .from("tax_reports")
-      .select("*, period:tax_periods(name, start_date, end_date)")
-      .order("calculated_at", { ascending: false })
-      .limit(1)
-      .maybeSingle(),
     supabase
       .from("tax_reports")
       .select("vat_amount, value_added_amount, negative_carried_out")
