@@ -18,6 +18,7 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import { InventoryPickerDialog } from "@/components/inventory/inventory-picker-dialog";
+import { categoryBadgeClassName } from "@/components/product-category-badge";
 import { formatMoneyInput, formatVND } from "@/lib/utils";
 
 type Props = {
@@ -102,7 +103,7 @@ export function EditPurchaseCostDialog({
                 Bán ra: <strong>{formatVND(totalAmount)}</strong>
               </p>
               {categoryName ? (
-                <Badge variant="secondary" className="mt-2">{categoryName}</Badge>
+                <Badge className={categoryBadgeClassName(categoryName)}>{categoryName}</Badge>
               ) : null}
             </div>
 
@@ -116,8 +117,8 @@ export function EditPurchaseCostDialog({
                 Gắn với tồn kho
               </div>
               <p className="mt-1 text-sm text-emerald-800">
-                Tự tính giá vốn từ hàng tồn, trừ số lượng/trọng lượng trong kho,
-                nguồn giá vốn = inventory.
+                Tự tính giá vốn từ hàng tồn, trừ số lượng/trọng lượng trong kho.
+                Nguồn giá vốn sẽ được ghi nhận là từ tồn kho.
               </p>
             </button>
 

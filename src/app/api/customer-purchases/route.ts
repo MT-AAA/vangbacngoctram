@@ -5,6 +5,7 @@ import { requireMember, writeAuditLog } from "@/lib/customer-purchases/api";
 import { customerPurchaseCreateSchema } from "@/lib/customer-purchases/schema";
 import { ensureInventoryItemForPurchase } from "@/lib/customer-purchases/inventory";
 import { getPurchaseRecalcImpact } from "@/lib/customer-purchases/recalc-impact";
+import { recalculateInventorySalesFromPurchase } from "@/lib/inventory/recalculate-sales";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -111,6 +112,15 @@ export async function POST(request: Request) {
       })
     : { affected_sales_count: 0, locked_period_count: 0, earliest_sale_date: null };
 
+  const recalcResult = input.add_to_inventory
+    ? await recalculateInventorySalesFromPurchase(admin, {
+        storeId: auth.profile.store_id,
+        productCategoryId: input.product_category_id,
+        purchaseDate: input.purchase_date,
+        calculatedBy: auth.profile.id,
+      })
+    : { updated_count: 0, skipped: [], affected_period_ids: [] };
+
   await writeAuditLog(admin, {
     store_id: auth.profile.store_id,
     user_id: auth.profile.id,
@@ -123,6 +133,7 @@ export async function POST(request: Request) {
       add_to_inventory: input.add_to_inventory,
       is_tax_purchase_input: input.is_tax_purchase_input,
       recalc_impact: recalcImpact,
+      recalc_result: recalcResult,
     },
   });
 
@@ -130,5 +141,6 @@ export async function POST(request: Request) {
     id: inserted.id,
     inventory_item_id: inventoryItemId,
     recalc_impact: recalcImpact,
+    recalc_result: recalcResult,
   });
 }

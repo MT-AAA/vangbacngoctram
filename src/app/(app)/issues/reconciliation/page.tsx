@@ -46,7 +46,7 @@ export default async function ReconciliationIssuesPage() {
           Đối soát file nhập
         </h1>
         <p className="text-sm text-muted-foreground">
-          Danh sách file đã import có dòng lỗi hoặc số dòng commit chưa khớp
+          Danh sách file đã nhập có dòng lỗi hoặc số dòng đã lưu chưa khớp
           với số dòng đọc được. Mở chi tiết tại trang Nhập Excel để kiểm tra.
         </p>
       </div>
@@ -65,8 +65,8 @@ export default async function ReconciliationIssuesPage() {
           <CardHeader>
             <CardTitle>{rows.length} file có cảnh báo</CardTitle>
             <CardDescription>
-              Cảnh báo bao gồm: nhập thất bại, có dòng lỗi, hoặc tổng dòng đã
-              commit khác với số dòng đọc được.
+              Cảnh báo bao gồm: nhập thất bại, có dòng lỗi, hoặc tổng số dòng đã
+              lưu khác với số dòng đọc được.
             </CardDescription>
           </CardHeader>
           <CardContent>

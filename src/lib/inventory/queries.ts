@@ -275,6 +275,9 @@ export async function loadInventoryPicker(
   if (args.nameLike && !args.categoryId) {
     query = query.ilike("name", `%${args.nameLike}%`);
   }
+  if (args.categoryId) {
+    query = query.eq("product_category_id", args.categoryId);
+  }
   if (args.excludeIds && args.excludeIds.length > 0) {
     query = query.not("id", "in", `(${args.excludeIds.join(",")})`);
   }
@@ -283,14 +286,54 @@ export async function loadInventoryPicker(
     .order("imported_at", { ascending: false, nullsFirst: false })
     .limit(limit * 2);
 
-  const rows = (data ?? []) as InventoryRow[];
-  if (!args.categoryId) return rows.slice(0, limit);
-
-  const sameCat: InventoryRow[] = [];
-  const otherCat: InventoryRow[] = [];
-  for (const r of rows) {
-    if (r.product_category_id === args.categoryId) sameCat.push(r);
-    else otherCat.push(r);
+  const uniqueRows: InventoryRow[] = [];
+  const seenPoolKeys = new Set<string>();
+  for (const row of (data ?? []) as InventoryRow[]) {
+    const isAveragePool = row.name.startsWith("Tồn kho bình quân - ");
+    const key = isAveragePool
+      ? `pool:${row.product_category_id ?? row.name}`
+      : `item:${row.id}`;
+    if (seenPoolKeys.has(key)) continue;
+    seenPoolKeys.add(key);
+    uniqueRows.push(row);
+    if (uniqueRows.length >= limit) break;
   }
-  return [...sameCat, ...otherCat].slice(0, limit);
+
+  const categoryIds = Array.from(
+    new Set(
+      uniqueRows
+        .filter((row) => row.name.startsWith("Tồn kho bình quân - ") && row.product_category_id)
+        .map((row) => row.product_category_id as string)
+    )
+  );
+
+  if (categoryIds.length === 0) return uniqueRows;
+
+  const { data: movements } = await client
+    .from("inventory_movements")
+    .select("product_category_id, weight_delta, cost_delta")
+    .in("product_category_id", categoryIds)
+    .lte("movement_date", new Date().toISOString().slice(0, 10));
+
+  const rollups = new Map<string, { weight: number; cost: number }>();
+  for (const movement of movements ?? []) {
+    const key = movement.product_category_id;
+    const current = rollups.get(key) ?? { weight: 0, cost: 0 };
+    current.weight += Number(movement.weight_delta ?? 0);
+    current.cost += Number(movement.cost_delta ?? 0);
+    rollups.set(key, current);
+  }
+
+  return uniqueRows.map((row) => {
+    const rollup = row.product_category_id ? rollups.get(row.product_category_id) : null;
+    if (!rollup || !row.name.startsWith("Tồn kho bình quân - ")) return row;
+    const unitCost = rollup.weight > 0 ? rollup.cost / rollup.weight : row.purchase_unit_price;
+    return {
+      ...row,
+      current_weight: rollup.weight,
+      current_quantity: rollup.weight,
+      purchase_cost_amount: rollup.cost,
+      purchase_unit_price: unitCost,
+    };
+  });
 }

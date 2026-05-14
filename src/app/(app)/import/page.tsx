@@ -32,8 +32,8 @@ export default async function ImportPage() {
       <div>
         <h1 className="text-2xl font-bold tracking-tight">Nhập dữ liệu Excel</h1>
         <p className="text-sm text-muted-foreground">
-          Tải lên file Excel doanh thu (.xlsx, .xls). Hệ thống sẽ tự động chống
-          trùng lặp dựa trên số hóa đơn hoặc hash của các trường chính.
+          Tải lên file Excel doanh thu (.xlsx, .xls). Hệ thống sẽ tự động nhận diện
+          hóa đơn đã nhập để tránh lưu trùng dữ liệu.
         </p>
       </div>
 

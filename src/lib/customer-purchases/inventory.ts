@@ -72,16 +72,20 @@ export async function ensureInventoryItemForPurchase(
     .toUpperCase()}`;
   const poolName = `Tồn kho bình quân - ${category.name}`;
 
-  const { data: existingPool } = await admin
+  const { data: existingPools } = await admin
     .from("inventory_items")
     .select(
       "id, current_quantity, current_weight, initial_quantity, initial_weight, purchase_cost_amount"
     )
     .eq("store_id", input.store_id)
     .eq("product_category_id", input.product_category_id)
-    .eq("source_reference", poolReference)
+    .eq("name", poolName)
+    .eq("is_tax_cost_source", true)
     .not("status", "in", "(archived,sold)")
-    .maybeSingle();
+    .order("created_at", { ascending: true })
+    .limit(1);
+
+  const existingPool = existingPools?.[0] ?? null;
 
   const addQuantity = Number(input.quantity ?? 0);
   const addWeight = Number(input.weight ?? 0);
@@ -114,6 +118,7 @@ export async function ensureInventoryItemForPurchase(
         notes: "Rổ tồn kho bình quân, tự động cộng từ mua khách.",
         source_type: "customer_purchase",
         source_id: input.purchase_id,
+        source_reference: poolReference,
         is_tax_cost_source: true,
       })
       .eq("id", existingPool.id);

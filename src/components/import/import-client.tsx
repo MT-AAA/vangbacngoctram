@@ -4,8 +4,10 @@ import { useState, useTransition } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Badge } from "@/components/ui/badge";
+import { categoryBadgeClassName } from "@/components/product-category-badge";
 import { toast } from "sonner";
-import { FileSpreadsheet, Loader2, CheckCircle2, AlertCircle } from "lucide-react";
+import { FileSpreadsheet, Loader2, AlertCircle } from "lucide-react";
 import { formatVND, formatVNDate, formatNumber } from "@/lib/utils";
 
 type PreviewRow = {
@@ -168,7 +170,7 @@ export function ImportClient() {
               value={formatNumber(preview.unique_invoice_count, 0)}
             />
             <SummaryStat
-              label="Hash giao dịch"
+              label="Mã nhận diện giao dịch"
               value={formatNumber(preview.transaction_hash_count, 0)}
             />
             <SummaryStat
@@ -266,10 +268,9 @@ export function ImportClient() {
                     </td>
                     <td className="px-2 py-1.5 text-xs">
                       {r.classified_category_name ? (
-                        <span className="inline-flex items-center gap-1 text-success">
-                          <CheckCircle2 className="h-3 w-3" />
+                        <Badge className={categoryBadgeClassName(r.classified_category_name)}>
                           {r.classified_category_name}
-                        </span>
+                        </Badge>
                       ) : (
                         <span className="text-muted-foreground">Cần xử lý</span>
                       )}
