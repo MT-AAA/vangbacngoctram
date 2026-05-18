@@ -233,12 +233,11 @@ export type ReconciliationRow = {
  * An import_file is a "warning" if any of:
  *   * it failed (status = 'failed'),
  *   * it has error_rows > 0,
+ *   * it has updated_rows > 0
+ *     (i.e. rows in this Excel file already existed from a previous import),
  *   * inserted_rows + updated_rows != transaction_line_count
  *     (i.e. some parsed rows didn't make it into the table — typically
  *     a partial upsert failure).
- *
- * Imports that simply re-run on the same file (Mới=0, Cập nhật=406) are
- * NOT warnings — that's the dedupe path working as intended.
  */
 export async function findReconciliationWarnings(
   client: DBClient,
@@ -257,6 +256,9 @@ export async function findReconciliationWarnings(
     const warnings: string[] = [];
     if (r.status === "failed") warnings.push("Nhập thất bại");
     if (r.error_rows > 0) warnings.push(`${r.error_rows} dòng lỗi`);
+    if ((r.updated_rows ?? 0) > 0) {
+      warnings.push(`${r.updated_rows} dòng trùng dữ liệu đã nhập trước đó`);
+    }
     const committed = (r.inserted_rows ?? 0) + (r.updated_rows ?? 0);
     if (
       r.transaction_line_count > 0 &&
@@ -319,7 +321,7 @@ export async function findDuplicateGroups(
       "id, invoice_key, invoice_no, product_name_raw, unit, quantity, unit_price, total_amount"
     )
     .not("invoice_key", "is", null)
-    .neq("duplicate_resolution_status", "merged")
+    .or("duplicate_resolution_status.is.null,duplicate_resolution_status.neq.merged")
     .order("invoice_key", { ascending: true })
     .order("product_name_raw", { ascending: true })
     .limit(limit);
