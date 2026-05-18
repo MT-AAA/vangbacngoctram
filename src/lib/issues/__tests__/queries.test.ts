@@ -22,7 +22,7 @@ function fakeClient<T>(rowsByTable: Record<string, T[]>) {
         not() {
           return builder;
         },
-        neq() {
+        or() {
           return builder;
         },
         order() {
@@ -110,7 +110,35 @@ test("findDuplicateGroups flags shared invoice_no across invoice_keys", async ()
   assert.equal(shared[0].total_amount, 500);
 });
 
-test("findReconciliationWarnings flags failed imports and partial commits", async () => {
+test("findDuplicateGroups does not flag legitimate multi-line invoices with different products", async () => {
+  const rows = [
+    {
+      id: "a",
+      invoice_key: "K398",
+      invoice_no: "398",
+      product_name_raw: "Lắc bạc",
+      unit: "chỉ",
+      quantity: 1,
+      unit_price: 100,
+      total_amount: 100,
+    },
+    {
+      id: "b",
+      invoice_key: "K398",
+      invoice_no: "398",
+      product_name_raw: "Vàng ta",
+      unit: "chỉ",
+      quantity: 2,
+      unit_price: 200,
+      total_amount: 400,
+    },
+  ];
+  const client = fakeClient({ sales_transactions: rows });
+  const { groups } = await findDuplicateGroups(client);
+  assert.equal(groups.length, 0);
+});
+
+test("findReconciliationWarnings flags failed imports, updated duplicates and partial commits", async () => {
   const imports = [
     {
       id: "i1",
@@ -157,15 +185,32 @@ test("findReconciliationWarnings flags failed imports and partial commits", asyn
       period_start: "2026-04-01",
       period_end: "2026-04-30",
     },
+    {
+      id: "i4",
+      file_name: "overlap.xlsx",
+      created_at: "2026-04-04",
+      status: "completed",
+      total_rows: 100,
+      inserted_rows: 80,
+      updated_rows: 20,
+      error_rows: 0,
+      transaction_line_count: 100,
+      unique_invoice_count: 90,
+      total_amount: 1000,
+      period_start: "2026-04-01",
+      period_end: "2026-04-30",
+    },
   ];
   const client = fakeClient({ import_files: imports });
   const { rows, count } = await findReconciliationWarnings(client);
-  assert.equal(count, 2, "ok.xlsx is excluded, fail and partial included");
-  assert.equal(rows.length, 2);
+  assert.equal(count, 3, "ok.xlsx is excluded; fail, partial and overlap included");
+  assert.equal(rows.length, 3);
   const ids = rows.map((r) => r.id).sort();
-  assert.deepEqual(ids, ["i2", "i3"]);
+  assert.deepEqual(ids, ["i2", "i3", "i4"]);
   const partial = rows.find((r) => r.id === "i3");
   assert.ok(partial && partial.warnings.some((w) => w.includes("95/100")));
+  const overlap = rows.find((r) => r.id === "i4");
+  assert.ok(overlap && overlap.warnings.some((w) => w.includes("20 dòng trùng")));
 });
 
 test("findReconciliationWarnings returns count-only when onlyCount is true", async () => {
