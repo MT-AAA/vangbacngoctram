@@ -19,6 +19,7 @@ import { formatVND, formatVNDate } from "@/lib/utils";
 import { CreatePeriodForm } from "@/components/tax/create-period-form";
 import { RecalcButton } from "@/components/tax/recalc-button";
 import { ApplyAverageCostButton } from "@/components/tax/apply-average-cost-button";
+import { DeletePeriodButton } from "@/components/tax/delete-period-button";
 
 export default async function TaxReportsPage() {
   const supabase = createClient();
@@ -141,6 +142,11 @@ export default async function TaxReportsPage() {
                             <RecalcButton periodId={p.id} />
                             <ApplyAverageCostButton
                               periodId={p.id}
+                              periodLocked={p.is_locked}
+                            />
+                            <DeletePeriodButton
+                              periodId={p.id}
+                              periodName={p.name}
                               periodLocked={p.is_locked}
                             />
                           </div>

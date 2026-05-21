@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
+import { Checkbox } from "@/components/ui/checkbox";
 import { categoryBadgeClassName } from "@/components/product-category-badge";
 import {
   Select,
@@ -95,6 +96,9 @@ export function CustomerPurchasesClient({
     null
   );
   const [deleting, setDeleting] = useState(false);
+  const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false);
+  const [bulkDeleting, setBulkDeleting] = useState(false);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [importing, setImporting] = useState(false);
   const [exporting, setExporting] = useState(false);
   const [verifiedDuplicateIds, setVerifiedDuplicateIds] = useState<Set<string>>(
@@ -111,6 +115,11 @@ export function CustomerPurchasesClient({
   const importInputRef = useRef<HTMLInputElement | null>(null);
 
   const totalPages = Math.max(1, Math.ceil(total / pageSize));
+  const selectedCount = selectedIds.size;
+  const currentPageIds = rows.map((row) => row.id);
+  const allCurrentPageSelected =
+    currentPageIds.length > 0 && currentPageIds.every((id) => selectedIds.has(id));
+  const someCurrentPageSelected = currentPageIds.some((id) => selectedIds.has(id));
 
   const normalizeDuplicateText = (value: string | null | undefined) =>
     (value ?? "").trim().toLowerCase().replace(/\s+/g, " ");
@@ -206,6 +215,53 @@ export function CustomerPurchasesClient({
         setDeleting(false);
       }
     });
+  };
+
+  const toggleRowSelected = (id: string, checked: boolean) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (checked) next.add(id);
+      else next.delete(id);
+      return next;
+    });
+  };
+
+  const toggleCurrentPageSelected = (checked: boolean) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      currentPageIds.forEach((id) => {
+        if (checked) next.add(id);
+        else next.delete(id);
+      });
+      return next;
+    });
+  };
+
+  const runBulkDelete = async () => {
+    const ids = Array.from(selectedIds);
+    if (ids.length === 0) return;
+    setBulkDeleting(true);
+    try {
+      const res = await fetch("/api/customer-purchases/bulk-delete", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ ids }),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        toast.error("Xóa hàng loạt thất bại", {
+          description: err?.error ?? `HTTP ${res.status}`,
+        });
+        return;
+      }
+      const result = await res.json().catch(() => ({}));
+      toast.success(`Đã xóa ${result.deleted_count ?? ids.length} giao dịch mua`);
+      setSelectedIds(new Set());
+      setBulkDeleteOpen(false);
+      router.refresh();
+    } finally {
+      setBulkDeleting(false);
+    }
   };
 
   const categoryIdByName = new Map(
@@ -371,9 +427,10 @@ export function CustomerPurchasesClient({
 
   const parsePurchaseDate = (value: unknown) => {
     if (value instanceof Date && !Number.isNaN(value.getTime())) {
-      const y = value.getFullYear();
-      const m = String(value.getMonth() + 1).padStart(2, "0");
-      const d = String(value.getDate()).padStart(2, "0");
+      const safeUtcDate = new Date(value.getTime() + 12 * 60 * 60 * 1000);
+      const y = safeUtcDate.getUTCFullYear();
+      const m = String(safeUtcDate.getUTCMonth() + 1).padStart(2, "0");
+      const d = String(safeUtcDate.getUTCDate()).padStart(2, "0");
       return `${y}-${m}-${d}`;
     }
 
@@ -571,6 +628,21 @@ export function CustomerPurchasesClient({
             )}
             Xuất Excel
           </Button>
+          {role === "admin" && selectedCount > 0 && (
+            <Button
+              onClick={() => setBulkDeleteOpen(true)}
+              variant="destructive"
+              size="sm"
+              disabled={bulkDeleting}
+            >
+              {bulkDeleting ? (
+                <Loader2 className="mr-1 h-4 w-4 animate-spin" />
+              ) : (
+                <Trash2 className="mr-1 h-4 w-4" />
+              )}
+              Xóa {selectedCount} mục đã chọn
+            </Button>
+          )}
           <div className="ml-auto">
             <Button onClick={openCreate} size="sm">
               <Plus className="mr-1 h-4 w-4" />
@@ -584,6 +656,23 @@ export function CustomerPurchasesClient({
         <Table>
           <TableHeader>
             <TableRow>
+              {role === "admin" && (
+                <TableHead className="w-10">
+                  <Checkbox
+                    checked={
+                      allCurrentPageSelected
+                        ? true
+                        : someCurrentPageSelected
+                          ? "indeterminate"
+                          : false
+                    }
+                    onCheckedChange={(checked) =>
+                      toggleCurrentPageSelected(checked === true)
+                    }
+                    aria-label="Chọn tất cả giao dịch trên trang"
+                  />
+                </TableHead>
+              )}
               <TableHead>Ngày</TableHead>
               <TableHead>Khách hàng</TableHead>
               <TableHead>Sản phẩm</TableHead>
@@ -601,7 +690,7 @@ export function CustomerPurchasesClient({
           <TableBody>
             {rows.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={12} className="text-center text-sm text-muted-foreground py-8">
+                <TableCell colSpan={role === "admin" ? 13 : 12} className="text-center text-sm text-muted-foreground py-8">
                   Chưa có giao dịch nào phù hợp.
                 </TableCell>
               </TableRow>
@@ -620,6 +709,17 @@ export function CustomerPurchasesClient({
                         : undefined
                     }
                   >
+                    {role === "admin" && (
+                      <TableCell>
+                        <Checkbox
+                          checked={selectedIds.has(r.id)}
+                          onCheckedChange={(checked) =>
+                            toggleRowSelected(r.id, checked === true)
+                          }
+                          aria-label={`Chọn giao dịch ${r.product_name}`}
+                        />
+                      </TableCell>
+                    )}
                     <TableCell className="text-xs whitespace-nowrap">
                       {formatVNDate(r.purchase_date)}
                     </TableCell>
@@ -808,6 +908,45 @@ export function CustomerPurchasesClient({
                 <Loader2 className="mr-2 h-4 w-4 animate-spin" />
               )}
               Xóa
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog
+        open={bulkDeleteOpen}
+        onOpenChange={(v) => {
+          if (!v && !bulkDeleting) setBulkDeleteOpen(false);
+        }}
+      >
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Xóa hàng loạt giao dịch mua?</DialogTitle>
+            <DialogDescription>
+              Bạn đang chọn xóa {selectedCount} giao dịch mua. Hành động này sẽ
+              xóa các giao dịch đã chọn, tháo liên kết tồn kho liên quan và tính
+              lại giá vốn bán hàng bị ảnh hưởng. Hành động này không thể hoàn tác.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setBulkDeleteOpen(false)}
+              disabled={bulkDeleting}
+            >
+              Hủy
+            </Button>
+            <Button
+              type="button"
+              variant="destructive"
+              onClick={runBulkDelete}
+              disabled={bulkDeleting || selectedCount === 0}
+            >
+              {bulkDeleting && (
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              )}
+              Xóa {selectedCount} giao dịch
             </Button>
           </DialogFooter>
         </DialogContent>
