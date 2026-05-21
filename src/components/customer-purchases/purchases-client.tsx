@@ -1,7 +1,8 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useRef, useState, useTransition } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
+import * as XLSX from "xlsx";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -30,7 +31,17 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { Loader2, Pencil, Plus, Trash2 } from "lucide-react";
+import {
+  AlertTriangle,
+  CheckCircle2,
+  Download,
+  FileDown,
+  FileUp,
+  Loader2,
+  Pencil,
+  Plus,
+  Trash2,
+} from "lucide-react";
 import { toast } from "sonner";
 import { formatNumber, formatVND, formatVNDate } from "@/lib/utils";
 import { PURITY_LABELS, type Purity } from "@/lib/customer-purchases/schema";
@@ -84,8 +95,52 @@ export function CustomerPurchasesClient({
     null
   );
   const [deleting, setDeleting] = useState(false);
+  const [importing, setImporting] = useState(false);
+  const [exporting, setExporting] = useState(false);
+  const [verifiedDuplicateIds, setVerifiedDuplicateIds] = useState<Set<string>>(
+    () => {
+      if (typeof window === "undefined") return new Set();
+      try {
+        const saved = window.localStorage.getItem("customerPurchaseVerifiedDuplicates");
+        return new Set(saved ? (JSON.parse(saved) as string[]) : []);
+      } catch {
+        return new Set();
+      }
+    }
+  );
+  const importInputRef = useRef<HTMLInputElement | null>(null);
 
   const totalPages = Math.max(1, Math.ceil(total / pageSize));
+
+  const normalizeDuplicateText = (value: string | null | undefined) =>
+    (value ?? "").trim().toLowerCase().replace(/\s+/g, " ");
+
+  const duplicateKeyOf = (row: CustomerPurchaseListRow) => {
+    const cat = Array.isArray(row.category) ? row.category[0] : row.category;
+    return [
+      row.purchase_date,
+      normalizeDuplicateText(row.customer_name),
+      normalizeDuplicateText(row.product_name),
+      cat?.id ?? row.product_category_id ?? "none",
+    ].join("|");
+  };
+
+  const duplicateCounts = rows.reduce<Record<string, number>>((acc, row) => {
+    const key = duplicateKeyOf(row);
+    acc[key] = (acc[key] ?? 0) + 1;
+    return acc;
+  }, {});
+
+  const verifyDuplicate = (id: string) => {
+    const next = new Set(verifiedDuplicateIds);
+    next.add(id);
+    setVerifiedDuplicateIds(next);
+    window.localStorage.setItem(
+      "customerPurchaseVerifiedDuplicates",
+      JSON.stringify(Array.from(next))
+    );
+    toast.success("Đã xác minh giao dịch này là dữ liệu khác nhau");
+  };
 
   const apply = () => {
     const sp = new URLSearchParams();
@@ -151,6 +206,280 @@ export function CustomerPurchasesClient({
         setDeleting(false);
       }
     });
+  };
+
+  const categoryIdByName = new Map(
+    categories.map((c) => [c.name.trim().toLowerCase(), c.id])
+  );
+
+  const exportHeaders = [
+    "Ngày mua",
+    "Tên khách hàng",
+    "SĐT",
+    "MST",
+    "CCCD",
+    "Địa chỉ",
+    "Tên sản phẩm",
+    "Phân loại",
+    "Tuổi",
+    "Đơn vị",
+    "Trọng lượng",
+    "Đơn vị trọng lượng",
+    "Số lượng",
+    "Đơn giá mua",
+    "Thành tiền mua",
+    "Tính giá vốn",
+    "Đưa vào tồn kho",
+    "Ghi chú",
+  ] as const;
+
+  const exportColumnWidths = [
+    { wch: 16.25 },
+    { wch: 17.13 },
+    { wch: 21 },
+    { wch: 14 },
+    { wch: 14.75 },
+    { wch: 24 },
+    { wch: 16.63 },
+    { wch: 17.5 },
+    { wch: 10 },
+    { wch: 10 },
+    { wch: 12 },
+    { wch: 16 },
+    { wch: 10 },
+    { wch: 12.5 },
+    { wch: 15.63 },
+    { wch: 11.5 },
+    { wch: 13.25 },
+    { wch: 24 },
+  ];
+
+  const excelSerialFromISO = (value: string | null | undefined) => {
+    if (!value) return "";
+    const [year, month, day] = value.slice(0, 10).split("-").map(Number);
+    if (!year || !month || !day) return value;
+    return (Date.UTC(year, month - 1, day) - Date.UTC(1899, 11, 30)) / 86400000;
+  };
+
+  const buildFormattedWorksheet = (rowsForSheet: Record<string, unknown>[]) => {
+    const ws = XLSX.utils.aoa_to_sheet([[...exportHeaders]]);
+    ws["!cols"] = exportColumnWidths;
+
+    rowsForSheet.forEach((row, index) => {
+      const sheetRow = index + 2;
+      exportHeaders.forEach((header, colIndex) => {
+        const address = XLSX.utils.encode_cell({ r: sheetRow - 1, c: colIndex });
+        const value = row[header];
+        if (header === "Ngày mua") {
+          const serial = excelSerialFromISO(String(value ?? ""));
+          ws[address] = typeof serial === "number" ? { t: "n", v: serial, z: "m/d/yy" } : { t: "s", v: String(serial) };
+        } else if (header === "SĐT" || header === "MST" || header === "CCCD" || header === "Địa chỉ") {
+          ws[address] = { t: "s", v: String(value ?? ""), z: "@" };
+        } else if (header === "Đơn giá mua") {
+          ws[address] = { t: "n", v: Number(value ?? 0), z: "#,##0" };
+        } else if (header === "Thành tiền mua") {
+          ws[address] = { t: "n", f: `N${sheetRow}*K${sheetRow}`, z: "#,##0" };
+        } else if (header === "Trọng lượng" || header === "Số lượng") {
+          ws[address] = { t: "n", v: Number(value ?? 0) };
+        } else if (header === "Tính giá vốn" || header === "Đưa vào tồn kho") {
+          ws[address] = { t: "b", v: value === true || String(value).toLowerCase() === "true" || String(value).toLowerCase() === "có" };
+        } else {
+          ws[address] = { t: "s", v: String(value ?? "") };
+        }
+      });
+    });
+
+    ws["!ref"] = `A1:R${Math.max(rowsForSheet.length + 1, 1)}`;
+    return ws;
+  };
+
+  const downloadWorkbook = (fileName: string, rowsForSheet: Record<string, unknown>[]) => {
+    const wb = XLSX.utils.book_new();
+    const ws = buildFormattedWorksheet(rowsForSheet);
+    XLSX.utils.book_append_sheet(wb, ws, "Mua từ khách");
+    XLSX.writeFile(wb, fileName, { bookType: "xlsx", cellStyles: true });
+  };
+
+  const downloadFormattedTemplate = () => {
+    const link = document.createElement("a");
+    link.href = "/mau_nhap_mua_tu_khach.xlsx";
+    link.download = "mau_nhap_mua_tu_khach.xlsx";
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+  };
+
+  const downloadTemplate = () => {
+    downloadWorkbook("mau_nhap_mua_tu_khach.xlsx", [
+      {
+        "Ngày mua": "2026-05-21",
+        "Tên khách hàng": "Nguyễn Văn A",
+        "SĐT": "0900000000",
+        "MST": "",
+        "CCCD": "",
+        "Địa chỉ": "",
+        "Tên sản phẩm": "Nhẫn vàng 9999",
+        "Phân loại": categories[0]?.name ?? "",
+        "Tuổi": "9999",
+        "Đơn vị": "chỉ",
+        "Trọng lượng": 1,
+        "Đơn vị trọng lượng": "chỉ",
+        "Số lượng": 1,
+        "Đơn giá mua": 8000000,
+        "Thành tiền mua": "",
+        "Tính giá vốn": true,
+        "Đưa vào tồn kho": true,
+        "Ghi chú": "",
+      },
+    ]);
+  };
+
+  const buildExportRows = (exportRows: CustomerPurchaseListRow[]) =>
+    exportRows.map((r) => {
+      const cat = Array.isArray(r.category) ? r.category[0] : r.category;
+      return {
+        "Ngày mua": r.purchase_date,
+        "Tên khách hàng": r.customer_name ?? "",
+        "SĐT": r.customer_phone ?? "",
+        "MST": r.customer_tax_code ?? "",
+        "CCCD": r.customer_id_card ?? "",
+        "Địa chỉ": r.customer_address ?? "",
+        "Tên sản phẩm": r.product_name,
+        "Phân loại": cat?.name ?? "",
+        "Tuổi": r.purity ?? "",
+        "Đơn vị": r.unit ?? "",
+        "Trọng lượng": r.weight ?? "",
+        "Đơn vị trọng lượng": r.weight_unit ?? "",
+        "Số lượng": r.quantity ?? 0,
+        "Đơn giá mua": r.unit_price ?? 0,
+        "Thành tiền mua": r.total_amount ?? 0,
+        "Tính giá vốn": Boolean(r.is_tax_purchase_input),
+        "Đưa vào tồn kho": Boolean(r.becomes_inventory),
+        "Ghi chú": r.notes ?? "",
+      };
+    });
+
+  const exportExcel = async () => {
+    setExporting(true);
+    try {
+      const sp = new URLSearchParams(searchParams.toString());
+      sp.delete("page");
+      const res = await fetch(`/api/customer-purchases/export?${sp.toString()}`);
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const data = (await res.json()) as { rows?: CustomerPurchaseListRow[] };
+      const exportRows = data.rows ?? [];
+      downloadWorkbook(
+        `mua_tu_khach_${new Date().toISOString().slice(0, 10)}.xlsx`,
+        buildExportRows(exportRows)
+      );
+      toast.success(`Đã xuất ${exportRows.length} giao dịch theo bộ lọc`);
+    } catch (err) {
+      toast.error("Xuất Excel thất bại", {
+        description: err instanceof Error ? err.message : "Không lấy được dữ liệu",
+      });
+    } finally {
+      setExporting(false);
+    }
+  };
+
+  const parseBool = (value: unknown) => {
+    const text = String(value ?? "").trim().toLowerCase();
+    return ["có", "co", "yes", "true", "1", "x"].includes(text);
+  };
+
+  const parseNumber = (value: unknown) => {
+    if (typeof value === "number") return value;
+    const normalized = String(value ?? "0").replace(/\./g, "").replace(",", ".");
+    const n = Number(normalized);
+    return Number.isFinite(n) ? n : 0;
+  };
+
+  const parsePurchaseDate = (value: unknown) => {
+    if (value instanceof Date && !Number.isNaN(value.getTime())) {
+      const y = value.getFullYear();
+      const m = String(value.getMonth() + 1).padStart(2, "0");
+      const d = String(value.getDate()).padStart(2, "0");
+      return `${y}-${m}-${d}`;
+    }
+
+    if (typeof value === "number") {
+      const parsed = XLSX.SSF.parse_date_code(value);
+      if (parsed) {
+        return `${parsed.y}-${String(parsed.m).padStart(2, "0")}-${String(parsed.d).padStart(2, "0")}`;
+      }
+    }
+
+    const text = String(value ?? "").trim();
+    const iso = text.match(/^(\d{4})-(\d{1,2})-(\d{1,2})/);
+    if (iso) {
+      return `${iso[1]}-${iso[2].padStart(2, "0")}-${iso[3].padStart(2, "0")}`;
+    }
+
+    const vn = text.match(/^(\d{1,2})[\/.-](\d{1,2})[\/.-](\d{2}|\d{4})$/);
+    if (vn) {
+      const year = vn[3].length === 2 ? `20${vn[3]}` : vn[3];
+      return `${year}-${vn[2].padStart(2, "0")}-${vn[1].padStart(2, "0")}`;
+    }
+
+    return "";
+  };
+
+  const importExcel = async (file: File) => {
+    setImporting(true);
+    try {
+      const buffer = await file.arrayBuffer();
+      const wb = XLSX.read(buffer, { type: "array", cellDates: true });
+      const ws = wb.Sheets[wb.SheetNames[0]];
+      const importedRows = XLSX.utils.sheet_to_json<Record<string, unknown>>(ws, { defval: "" });
+      let ok = 0;
+
+      for (const row of importedRows) {
+        const purchaseDate = parsePurchaseDate(row["Ngày mua"]);
+        const categoryName = String(row["Phân loại"] ?? "").trim().toLowerCase();
+        const quantity = parseNumber(row["Số lượng"]);
+        const unitPrice = parseNumber(row["Đơn giá mua"]);
+        const totalAmount = parseNumber(row["Thành tiền mua"]) || quantity * unitPrice;
+
+        const res = await fetch("/api/customer-purchases", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            purchase_date: purchaseDate,
+            customer_name: row["Tên khách hàng"] || null,
+            customer_phone: row["SĐT"] || null,
+            customer_tax_code: row["MST"] || null,
+            customer_id_card: row["CCCD"] || null,
+            customer_address: row["Địa chỉ"] || null,
+            product_name: row["Tên sản phẩm"],
+            product_category_id: categoryIdByName.get(categoryName) ?? null,
+            purity: row["Tuổi"] || null,
+            unit: row["Đơn vị"] || null,
+            weight: row["Trọng lượng"] === "" ? null : parseNumber(row["Trọng lượng"]),
+            weight_unit: row["Đơn vị trọng lượng"] || "chỉ",
+            quantity,
+            unit_buy_price: unitPrice,
+            total_buy_amount: totalAmount,
+            is_tax_purchase_input: parseBool(row["Tính giá vốn"]),
+            add_to_inventory: parseBool(row["Đưa vào tồn kho"]),
+            notes: row["Ghi chú"] || null,
+            image_url: null,
+            attachment_url: null,
+          }),
+        });
+        if (!res.ok) throw new Error(`Dòng ${ok + 2}: nhập không thành công`);
+        ok += 1;
+      }
+
+      toast.success(`Đã nhập ${ok} giao dịch từ Excel`);
+      router.refresh();
+    } catch (err) {
+      toast.error("Nhập Excel thất bại", {
+        description: err instanceof Error ? err.message : "File không hợp lệ",
+      });
+    } finally {
+      setImporting(false);
+      if (importInputRef.current) importInputRef.current.value = "";
+    }
   };
 
   return (
@@ -227,6 +556,46 @@ export function CustomerPurchasesClient({
           <Button onClick={reset} variant="outline" size="sm">
             Xóa bộ lọc
           </Button>
+          <input
+            ref={importInputRef}
+            type="file"
+            accept=".xlsx,.xls,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel"
+            className="hidden"
+            onChange={(e) => {
+              const file = e.target.files?.[0];
+              if (file) void importExcel(file);
+            }}
+          />
+          <Button onClick={downloadFormattedTemplate} variant="outline" size="sm">
+            <Download className="mr-1 h-4 w-4" />
+            Tải Excel mẫu
+          </Button>
+          <Button
+            onClick={() => importInputRef.current?.click()}
+            variant="outline"
+            size="sm"
+            disabled={importing}
+          >
+            {importing ? (
+              <Loader2 className="mr-1 h-4 w-4 animate-spin" />
+            ) : (
+              <FileUp className="mr-1 h-4 w-4" />
+            )}
+            Nhập Excel
+          </Button>
+          <Button
+            onClick={() => void exportExcel()}
+            variant="outline"
+            size="sm"
+            disabled={total === 0 || exporting}
+          >
+            {exporting ? (
+              <Loader2 className="mr-1 h-4 w-4 animate-spin" />
+            ) : (
+              <FileDown className="mr-1 h-4 w-4" />
+            )}
+            Xuất Excel
+          </Button>
           <div className="ml-auto">
             <Button onClick={openCreate} size="sm">
               <Plus className="mr-1 h-4 w-4" />
@@ -264,8 +633,18 @@ export function CustomerPurchasesClient({
             ) : (
               rows.map((r) => {
                 const cat = Array.isArray(r.category) ? r.category[0] : r.category;
+                const isDuplicate = duplicateCounts[duplicateKeyOf(r)] > 1;
+                const isVerifiedDuplicate = verifiedDuplicateIds.has(r.id);
+                const shouldWarnDuplicate = isDuplicate && !isVerifiedDuplicate;
                 return (
-                  <TableRow key={r.id}>
+                  <TableRow
+                    key={r.id}
+                    className={
+                      shouldWarnDuplicate
+                        ? "bg-rose-50/90 hover:bg-rose-100 border-l-4 border-l-rose-500"
+                        : undefined
+                    }
+                  >
                     <TableCell className="text-xs whitespace-nowrap">
                       {formatVNDate(r.purchase_date)}
                     </TableCell>
@@ -279,6 +658,18 @@ export function CustomerPurchasesClient({
                     </TableCell>
                     <TableCell className="max-w-[260px] truncate">
                       <div className="font-medium">{r.product_name}</div>
+                      {shouldWarnDuplicate && (
+                        <div className="mt-1 inline-flex items-center gap-1 rounded-full bg-rose-100 px-2 py-0.5 text-[11px] font-medium text-rose-700">
+                          <AlertTriangle className="h-3 w-3" />
+                          Nghi trùng giao dịch
+                        </div>
+                      )}
+                      {isDuplicate && isVerifiedDuplicate && (
+                        <div className="mt-1 inline-flex items-center gap-1 rounded-full bg-emerald-100 px-2 py-0.5 text-[11px] font-medium text-emerald-700">
+                          <CheckCircle2 className="h-3 w-3" />
+                          Đã xác minh khác nhau
+                        </div>
+                      )}
                       {r.unit && (
                         <div className="text-xs text-muted-foreground">
                           ĐV: {r.unit}
@@ -329,6 +720,17 @@ export function CustomerPurchasesClient({
                     </TableCell>
                     <TableCell className="text-right">
                       <div className="flex items-center justify-end gap-1">
+                        {shouldWarnDuplicate && (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => verifyDuplicate(r.id)}
+                            title="Xác minh đây là giao dịch khác nhau"
+                            className="text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50"
+                          >
+                            <CheckCircle2 className="h-4 w-4" />
+                          </Button>
+                        )}
                         <Button
                           variant="ghost"
                           size="sm"

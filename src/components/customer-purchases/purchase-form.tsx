@@ -56,6 +56,7 @@ type FormState = {
   customer_phone: string;
   customer_tax_code: string;
   customer_id_card: string;
+  customer_address: string;
   product_name: string;
   product_category_id: string;
   purity: string;
@@ -87,6 +88,7 @@ function emptyForm(): FormState {
     customer_phone: "",
     customer_tax_code: "",
     customer_id_card: "",
+    customer_address: "",
     product_name: "",
     product_category_id: CATEGORY_NONE,
     purity: PURITY_NONE,
@@ -112,6 +114,7 @@ function hydrateForm(row: CustomerPurchaseListRow): FormState {
     customer_phone: row.customer_phone ?? "",
     customer_tax_code: row.customer_tax_code ?? "",
     customer_id_card: row.customer_id_card ?? "",
+    customer_address: row.customer_address ?? "",
     product_name: row.product_name ?? "",
     product_category_id: row.product_category_id ?? CATEGORY_NONE,
     purity: row.purity ?? PURITY_NONE,
@@ -232,6 +235,7 @@ export function CustomerPurchaseForm({
       customer_phone: form.customer_phone,
       customer_tax_code: form.customer_tax_code,
       customer_id_card: form.customer_id_card,
+      customer_address: form.customer_address,
       product_name: product,
       product_category_id:
         form.product_category_id === CATEGORY_NONE
@@ -362,6 +366,15 @@ export function CustomerPurchaseForm({
                 placeholder="Số giấy tờ"
               />
             </div>
+          </div>
+
+          <div className="space-y-1.5">
+            <Label>Địa chỉ</Label>
+            <Input
+              value={form.customer_address}
+              onChange={(e) => update("customer_address", e.target.value)}
+              placeholder="Địa chỉ khách hàng"
+            />
           </div>
 
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">

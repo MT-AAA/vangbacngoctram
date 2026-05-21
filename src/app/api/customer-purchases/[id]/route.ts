@@ -6,8 +6,10 @@ import { requireMember, writeAuditLog } from "@/lib/customer-purchases/api";
 import { customerPurchaseUpdateSchema } from "@/lib/customer-purchases/schema";
 import {
   ensureInventoryItemForPurchase,
+  reconcileInventoryItemForPurchase,
   removeInventoryLink,
 } from "@/lib/customer-purchases/inventory";
+import { recalculateInventorySalesFromPurchase } from "@/lib/inventory/recalculate-sales";
 
 type CustomerPurchaseUpdate =
   Database["public"]["Tables"]["customer_purchases"]["Update"];
@@ -73,6 +75,8 @@ export async function PATCH(
     updatePayload.customer_tax_code = input.customer_tax_code;
   if (input.customer_id_card !== undefined)
     updatePayload.customer_id_card = input.customer_id_card;
+  if (input.customer_address !== undefined)
+    updatePayload.customer_address = input.customer_address;
   if (input.product_name !== undefined)
     updatePayload.product_name = input.product_name;
   if (input.product_category_id !== undefined)
@@ -112,33 +116,65 @@ export async function PATCH(
   }
 
   let inventoryItemId: string | null = after.inventory_item_id ?? null;
+  const beforeInput = {
+    store_id: auth.profile.store_id,
+    purchase_id: before.id,
+    product_name: before.product_name,
+    product_category_id: before.product_category_id,
+    quantity: Number(before.quantity ?? 0),
+    weight: before.weight === null || before.weight === undefined ? null : Number(before.weight),
+    weight_unit: before.weight_unit,
+    unit_cost: Number(before.unit_price ?? 0),
+    total_cost: Number(before.total_amount ?? 0),
+    notes: before.notes ?? null,
+    created_by: auth.profile.id,
+    purchase_date: before.purchase_date,
+    inventory_item_id: before.inventory_item_id,
+  };
+  const afterInput = {
+    store_id: auth.profile.store_id,
+    purchase_id: after.id,
+    product_name: after.product_name,
+    product_category_id: after.product_category_id,
+    quantity: Number(after.quantity ?? 0),
+    weight: after.weight === null || after.weight === undefined ? null : Number(after.weight),
+    weight_unit: after.weight_unit,
+    unit_cost: Number(after.unit_price ?? 0),
+    total_cost: Number(after.total_amount ?? 0),
+    notes: after.notes ?? null,
+    created_by: auth.profile.id,
+    purchase_date: after.purchase_date,
+  };
+
   if (after.becomes_inventory) {
     try {
-      const link = await ensureInventoryItemForPurchase(admin, {
-        store_id: auth.profile.store_id,
-        purchase_id: after.id,
-        product_name: after.product_name,
-        product_category_id: after.product_category_id,
-        quantity: Number(after.quantity ?? 0),
-        weight:
-          after.weight === null || after.weight === undefined
-            ? null
-            : Number(after.weight),
-        weight_unit: after.weight_unit,
-        unit_cost: Number(after.unit_price ?? 0),
-        total_cost: Number(after.total_amount ?? 0),
-        notes: after.notes ?? null,
-        created_by: auth.profile.id,
-        purchase_date: after.purchase_date,
-      });
+      const link = before.inventory_item_id
+        ? await reconcileInventoryItemForPurchase(admin, beforeInput, afterInput)
+        : await ensureInventoryItemForPurchase(admin, afterInput);
       inventoryItemId = link.inventory_item_id;
     } catch (err) {
       const msg = err instanceof Error ? err.message : "Lỗi khi liên kết tồn kho";
       return NextResponse.json({ error: msg }, { status: 500 });
     }
   } else if (before.inventory_item_id) {
-    await removeInventoryLink(admin, after.id);
+    await removeInventoryLink(admin, after.id, auth.profile.id);
     inventoryItemId = null;
+  }
+
+  const recalcDates = [before.purchase_date, after.purchase_date].filter(Boolean).sort();
+  const recalcCategoryIds = Array.from(
+    new Set([before.product_category_id, after.product_category_id].filter(Boolean))
+  ) as string[];
+  const recalcResults = [];
+  for (const categoryId of recalcCategoryIds) {
+    recalcResults.push(
+      await recalculateInventorySalesFromPurchase(admin, {
+        storeId: auth.profile.store_id,
+        productCategoryId: categoryId,
+        purchaseDate: recalcDates[0] ?? after.purchase_date,
+        calculatedBy: auth.profile.id,
+      })
+    );
   }
 
   await writeAuditLog(admin, {
@@ -150,6 +186,7 @@ export async function PATCH(
     diff: { before, after },
     metadata: {
       inventory_item_id: inventoryItemId,
+      recalc_results: recalcResults,
     },
   });
 
@@ -185,9 +222,13 @@ export async function DELETE(
     );
   }
 
-  if (before.inventory_item_id) {
-    await removeInventoryLink(admin, before.id);
-  }
+  const unlinkResult = before.inventory_item_id
+    ? await removeInventoryLink(admin, before.id, auth.profile.id)
+    : {
+        inventory_item_id: null,
+        product_category_id: before.product_category_id,
+        purchase_date: before.purchase_date,
+      };
 
   const { error: deleteErr } = await admin
     .from("customer_purchases")
@@ -199,6 +240,15 @@ export async function DELETE(
     return NextResponse.json({ error: deleteErr.message }, { status: 500 });
   }
 
+  const recalcResult = unlinkResult.product_category_id
+    ? await recalculateInventorySalesFromPurchase(admin, {
+        storeId: auth.profile.store_id,
+        productCategoryId: unlinkResult.product_category_id,
+        purchaseDate: unlinkResult.purchase_date ?? before.purchase_date,
+        calculatedBy: auth.profile.id,
+      })
+    : { updated_count: 0, skipped: [], affected_period_ids: [] };
+
   await writeAuditLog(admin, {
     store_id: auth.profile.store_id,
     user_id: auth.profile.id,
@@ -206,6 +256,10 @@ export async function DELETE(
     entity_type: "customer_purchases",
     entity_id: before.id,
     diff: { before },
+    metadata: {
+      inventory_item_id: unlinkResult.inventory_item_id,
+      recalc_result: recalcResult,
+    },
   });
 
   return NextResponse.json({ ok: true });

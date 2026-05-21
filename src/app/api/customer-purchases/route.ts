@@ -50,6 +50,7 @@ export async function POST(request: Request) {
     customer_phone: input.customer_phone,
     customer_tax_code: input.customer_tax_code,
     customer_id_card: input.customer_id_card,
+    customer_address: input.customer_address,
     product_name: input.product_name,
     product_category_id: input.product_category_id,
     purity: input.purity,

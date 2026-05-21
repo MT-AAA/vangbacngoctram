@@ -18,7 +18,7 @@ export type CustomerPurchaseRow =
   Database["public"]["Tables"]["customer_purchases"]["Row"];
 
 const CUSTOMER_PURCHASE_LIST_SELECT =
-  "id, purchase_date, customer_name, customer_phone, customer_tax_code, customer_id_card, " +
+  "id, purchase_date, customer_name, customer_phone, customer_tax_code, customer_id_card, customer_address, " +
   "product_name, product_category_id, purity, unit, quantity, weight, weight_unit, " +
   "unit_price, total_amount, is_tax_purchase_input, becomes_inventory, " +
   "inventory_item_id, image_url, attachment_url, notes, created_at, updated_at, " +
@@ -81,6 +81,7 @@ export async function listCustomerPurchases(
         `customer_phone.ilike.${pattern}`,
         `customer_tax_code.ilike.${pattern}`,
         `customer_id_card.ilike.${pattern}`,
+        `customer_address.ilike.${pattern}`,
       ].join(",")
     );
   }

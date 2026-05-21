@@ -139,7 +139,7 @@ export async function POST(request: Request) {
           Number(cost.sale_weight ?? sale.weight ?? sale.quantity ?? 0) > 0
             ? Number(cost.sale_cost ?? 0) /
               Number(cost.sale_weight ?? sale.weight ?? sale.quantity ?? 0)
-            : null,
+            : undefined,
         note: "Giảm tồn khi gắn hàng loạt giao dịch bán với tồn kho",
         created_by: auth.profile.id,
       });
