@@ -309,31 +309,6 @@ export function CustomerPurchasesClient({
     link.remove();
   };
 
-  const downloadTemplate = () => {
-    downloadWorkbook("mau_nhap_mua_tu_khach.xlsx", [
-      {
-        "Ngày mua": "2026-05-21",
-        "Tên khách hàng": "Nguyễn Văn A",
-        "SĐT": "0900000000",
-        "MST": "",
-        "CCCD": "",
-        "Địa chỉ": "",
-        "Tên sản phẩm": "Nhẫn vàng 9999",
-        "Phân loại": categories[0]?.name ?? "",
-        "Tuổi": "9999",
-        "Đơn vị": "chỉ",
-        "Trọng lượng": 1,
-        "Đơn vị trọng lượng": "chỉ",
-        "Số lượng": 1,
-        "Đơn giá mua": 8000000,
-        "Thành tiền mua": "",
-        "Tính giá vốn": true,
-        "Đưa vào tồn kho": true,
-        "Ghi chú": "",
-      },
-    ]);
-  };
-
   const buildExportRows = (exportRows: CustomerPurchaseListRow[]) =>
     exportRows.map((r) => {
       const cat = Array.isArray(r.category) ? r.category[0] : r.category;
