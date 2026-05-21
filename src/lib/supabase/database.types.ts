@@ -124,6 +124,7 @@ export type Database = {
           customer_name: string | null
           customer_phone: string | null
           customer_tax_code: string | null
+          customer_address: string | null
           id: string
           image_url: string | null
           inventory_item_id: string | null
@@ -151,6 +152,7 @@ export type Database = {
           customer_name?: string | null
           customer_phone?: string | null
           customer_tax_code?: string | null
+          customer_address?: string | null
           id?: string
           image_url?: string | null
           inventory_item_id?: string | null
@@ -178,6 +180,7 @@ export type Database = {
           customer_name?: string | null
           customer_phone?: string | null
           customer_tax_code?: string | null
+          customer_address?: string | null
           id?: string
           image_url?: string | null
           inventory_item_id?: string | null

@@ -139,6 +139,21 @@ export async function POST(request: Request) {
     },
   };
 
+  const { data: period } = await admin
+    .from("tax_periods")
+    .select("id, is_locked")
+    .eq("store_id", auth.profile.store_id)
+    .lte("start_date", sale.sale_date)
+    .gte("end_date", sale.sale_date)
+    .maybeSingle();
+
+  if (period?.is_locked) {
+    return NextResponse.json(
+      { error: "Kỳ thuế đã khóa, không thể gắn lại giá vốn giao dịch này" },
+      { status: 400 }
+    );
+  }
+
   let computation;
   try {
     computation = computeLink(ctx);
@@ -171,13 +186,15 @@ export async function POST(request: Request) {
         source_id: sale.id,
         source_label: sale.id,
         movement_date: sale.sale_date,
-        weight_delta: -Math.abs(Number(computation.weightDelta ?? computation.qtyDelta ?? 0)),
+        weight_delta: -Math.abs(
+          Number(computation.weightDelta ?? computation.qtyDelta ?? 0)
+        ),
         quantity_delta: -Math.abs(Number(computation.qtyDelta ?? 0)),
         cost_delta: -Math.abs(Number(computation.cost ?? 0)),
         unit_cost:
           computation.weightDelta && computation.weightDelta > 0
             ? computation.cost / computation.weightDelta
-            : null,
+            : undefined,
         note: "Giảm tồn khi gắn giao dịch bán với tồn kho",
         created_by: auth.profile.id,
       });
@@ -193,14 +210,7 @@ export async function POST(request: Request) {
   }
 
   // Recalculate the tax period this sale falls in, plus any later periods in the year.
-  const { data: period } = await admin
-    .from("tax_periods")
-    .select("id")
-    .eq("store_id", auth.profile.store_id)
-    .lte("start_date", sale.sale_date)
-    .gte("end_date", sale.sale_date)
-    .maybeSingle();
-  if (period) {
+  if (period?.id) {
     try {
       await recalculateTaxPeriod({
         storeId: auth.profile.store_id,

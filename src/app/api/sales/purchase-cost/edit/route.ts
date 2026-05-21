@@ -2,6 +2,10 @@ import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { requireMember, writeAuditLog } from "@/lib/issues/api";
+import {
+  cascadeRecalculateYear,
+  recalculateTaxPeriod,
+} from "@/lib/tax/recalculate";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -49,7 +53,7 @@ export async function POST(request: Request) {
 
   const { data: before, error: beforeErr } = await admin
     .from("sales_transactions")
-    .select("id, store_id, total_amount, purchase_cost_amount, purchase_cost_source, tax_calculation_status, value_added_amount")
+    .select("id, store_id, sale_date, total_amount, purchase_cost_amount, purchase_cost_source, tax_calculation_status, value_added_amount")
     .eq("id", id)
     .eq("store_id", auth.profile.store_id)
     .maybeSingle();
@@ -59,6 +63,21 @@ export async function POST(request: Request) {
   }
   if (!before) {
     return NextResponse.json({ error: "Không tìm thấy giao dịch" }, { status: 404 });
+  }
+
+  const { data: period } = await admin
+    .from("tax_periods")
+    .select("id, is_locked")
+    .eq("store_id", auth.profile.store_id)
+    .lte("start_date", before.sale_date)
+    .gte("end_date", before.sale_date)
+    .maybeSingle();
+
+  if (period?.is_locked) {
+    return NextResponse.json(
+      { error: "Kỳ thuế đã khóa, không thể sửa giá vốn giao dịch này" },
+      { status: 400 }
+    );
   }
 
   const valueAdded = Number(before.total_amount ?? 0) - amount;
@@ -82,6 +101,23 @@ export async function POST(request: Request) {
 
   if (updateErr) {
     return NextResponse.json({ error: updateErr.message }, { status: 500 });
+  }
+
+  if (period?.id) {
+    try {
+      await recalculateTaxPeriod({
+        storeId: auth.profile.store_id,
+        periodId: period.id,
+        calculatedBy: auth.profile.id,
+      });
+      await cascadeRecalculateYear({
+        storeId: auth.profile.store_id,
+        fromPeriodId: period.id,
+        calculatedBy: auth.profile.id,
+      });
+    } catch {
+      // Best-effort: admin có thể bấm tính lại ở trang báo cáo thuế.
+    }
   }
 
   await writeAuditLog(admin, {

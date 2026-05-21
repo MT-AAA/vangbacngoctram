@@ -84,6 +84,7 @@ export const customerPurchaseCreateSchema = z.object({
   customer_phone: emptyToNull,
   customer_tax_code: emptyToNull,
   customer_id_card: emptyToNull,
+  customer_address: emptyToNull,
   product_name: requiredText("Tên sản phẩm"),
   product_category_id: optionalUuid,
   purity: optionalPurity,

@@ -7,6 +7,8 @@ import {
   inventoryUpdateSchema,
 } from "@/lib/inventory/schema";
 import type { Database } from "@/lib/supabase/database.types";
+import { recordInventoryMovement } from "@/lib/inventory/movements";
+import { recalculateInventorySalesFromPurchase } from "@/lib/inventory/recalculate-sales";
 
 type InventoryUpdate = Database["public"]["Tables"]["inventory_items"]["Update"];
 
@@ -169,6 +171,63 @@ export async function PATCH(
     );
   }
 
+  const beforeCategoryId = existing.product_category_id;
+  const afterCategoryId = after.product_category_id;
+  const quantityDelta =
+    Number(after.current_quantity ?? 0) - Number(existing.current_quantity ?? 0);
+  const weightDelta =
+    Number(after.current_weight ?? 0) - Number(existing.current_weight ?? 0);
+  const costDelta =
+    Number(after.purchase_cost_amount ?? 0) - Number(existing.purchase_cost_amount ?? 0);
+  const inventoryChanged =
+    beforeCategoryId !== afterCategoryId ||
+    quantityDelta !== 0 ||
+    weightDelta !== 0 ||
+    costDelta !== 0 ||
+    Number(after.purchase_unit_price ?? 0) !== Number(existing.purchase_unit_price ?? 0) ||
+    after.imported_at !== existing.imported_at;
+
+  let recalcResult: Awaited<ReturnType<typeof recalculateInventorySalesFromPurchase>> | null = null;
+  if (inventoryChanged && afterCategoryId) {
+    await recordInventoryMovement(admin, {
+      store_id: auth.profile.store_id,
+      product_category_id: afterCategoryId,
+      inventory_item_id: after.id,
+      source_type: "adjustment",
+      source_id: `${after.id}:${Date.now()}`,
+      source_label: after.name,
+      movement_date: after.imported_at ?? new Date().toISOString(),
+      weight_delta: weightDelta,
+      quantity_delta: quantityDelta,
+      cost_delta: costDelta,
+      unit_cost:
+        Number(after.current_weight ?? 0) > 0
+          ? Number(after.purchase_cost_amount ?? 0) / Number(after.current_weight ?? 0)
+          : Number(after.purchase_unit_price ?? 0) || undefined,
+      note: "Điều chỉnh tồn kho thủ công",
+      created_by: auth.profile.id,
+    });
+
+    const recalcFromDate = [existing.imported_at, after.imported_at]
+      .filter(Boolean)
+      .sort()[0] ?? new Date().toISOString();
+    recalcResult = await recalculateInventorySalesFromPurchase(admin, {
+      storeId: auth.profile.store_id,
+      productCategoryId: afterCategoryId,
+      purchaseDate: recalcFromDate,
+      calculatedBy: auth.profile.id,
+    });
+
+    if (beforeCategoryId && beforeCategoryId !== afterCategoryId) {
+      await recalculateInventorySalesFromPurchase(admin, {
+        storeId: auth.profile.store_id,
+        productCategoryId: beforeCategoryId,
+        purchaseDate: recalcFromDate,
+        calculatedBy: auth.profile.id,
+      });
+    }
+  }
+
   await writeAuditLog(admin, {
     store_id: auth.profile.store_id,
     user_id: auth.profile.id,
@@ -179,6 +238,8 @@ export async function PATCH(
       sku: after.sku,
       name: after.name,
       confirm_overwrite_cost: confirmOverwriteCost,
+      inventory_changed: inventoryChanged,
+      recalc_result: recalcResult,
     },
     diff: { before: existing, after },
   });

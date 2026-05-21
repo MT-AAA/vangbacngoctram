@@ -16,6 +16,7 @@ type MovementInput = {
   inventory_item_id?: string | null;
   source_type: InventoryMovementSource;
   source_id?: string | null;
+  movement_event_id?: string | null;
   source_label?: string | null;
   movement_date: string;
   weight_delta: number;
@@ -40,7 +41,7 @@ export async function recordInventoryMovement(
       product_category_id: input.product_category_id,
       inventory_item_id: input.inventory_item_id ?? null,
       source_type: input.source_type,
-      source_id: input.source_id ?? null,
+      source_id: input.movement_event_id ?? input.source_id ?? null,
       source_label: input.source_label ?? null,
       movement_date: toDateOnly(input.movement_date),
       weight_delta: input.weight_delta,
