@@ -43,6 +43,13 @@ export async function POST(request: Request) {
   const input = parsed.data;
   const admin = createAdminClient();
 
+  if (input.add_to_inventory && !input.product_category_id) {
+    return NextResponse.json(
+      { error: "Cần chọn phân loại trước khi đưa giao dịch vào tồn kho" },
+      { status: 400 }
+    );
+  }
+
   const insertPayload = {
     store_id: auth.profile.store_id,
     purchase_date: input.purchase_date,
@@ -100,6 +107,12 @@ export async function POST(request: Request) {
       });
       inventoryItemId = link.inventory_item_id;
     } catch (err) {
+      await admin
+        .from("customer_purchases")
+        .delete()
+        .eq("store_id", auth.profile.store_id)
+        .eq("id", inserted.id);
+
       const msg = err instanceof Error ? err.message : "Lỗi khi liên kết tồn kho";
       return NextResponse.json({ error: msg }, { status: 500 });
     }

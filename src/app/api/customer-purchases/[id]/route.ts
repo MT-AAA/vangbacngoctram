@@ -10,6 +10,7 @@ import {
   removeInventoryLink,
 } from "@/lib/customer-purchases/inventory";
 import { recalculateInventorySalesFromPurchase } from "@/lib/inventory/recalculate-sales";
+import { getPurchaseRecalcImpact } from "@/lib/customer-purchases/recalc-impact";
 
 type CustomerPurchaseUpdate =
   Database["public"]["Tables"]["customer_purchases"]["Update"];
@@ -115,66 +116,128 @@ export async function PATCH(
     );
   }
 
+  const recalcRelevantChanged =
+    before.purchase_date !== after.purchase_date ||
+    before.product_name !== after.product_name ||
+    before.product_category_id !== after.product_category_id ||
+    before.purity !== after.purity ||
+    before.unit !== after.unit ||
+    Number(before.weight ?? 0) !== Number(after.weight ?? 0) ||
+    before.weight_unit !== after.weight_unit ||
+    Number(before.quantity ?? 0) !== Number(after.quantity ?? 0) ||
+    Number(before.unit_price ?? 0) !== Number(after.unit_price ?? 0) ||
+    Number(before.total_amount ?? 0) !== Number(after.total_amount ?? 0) ||
+    before.is_tax_purchase_input !== after.is_tax_purchase_input ||
+    before.becomes_inventory !== after.becomes_inventory ||
+    before.notes !== after.notes ||
+    before.image_url !== after.image_url ||
+    before.attachment_url !== after.attachment_url;
+
   let inventoryItemId: string | null = after.inventory_item_id ?? null;
-  const beforeInput = {
-    store_id: auth.profile.store_id,
-    purchase_id: before.id,
-    product_name: before.product_name,
-    product_category_id: before.product_category_id,
-    quantity: Number(before.quantity ?? 0),
-    weight: before.weight === null || before.weight === undefined ? null : Number(before.weight),
-    weight_unit: before.weight_unit,
-    unit_cost: Number(before.unit_price ?? 0),
-    total_cost: Number(before.total_amount ?? 0),
-    notes: before.notes ?? null,
-    created_by: auth.profile.id,
-    purchase_date: before.purchase_date,
-    inventory_item_id: before.inventory_item_id,
-  };
-  const afterInput = {
-    store_id: auth.profile.store_id,
-    purchase_id: after.id,
-    product_name: after.product_name,
-    product_category_id: after.product_category_id,
-    quantity: Number(after.quantity ?? 0),
-    weight: after.weight === null || after.weight === undefined ? null : Number(after.weight),
-    weight_unit: after.weight_unit,
-    unit_cost: Number(after.unit_price ?? 0),
-    total_cost: Number(after.total_amount ?? 0),
-    notes: after.notes ?? null,
-    created_by: auth.profile.id,
-    purchase_date: after.purchase_date,
-  };
-
-  if (after.becomes_inventory) {
-    try {
-      const link = before.inventory_item_id
-        ? await reconcileInventoryItemForPurchase(admin, beforeInput, afterInput)
-        : await ensureInventoryItemForPurchase(admin, afterInput);
-      inventoryItemId = link.inventory_item_id;
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : "Lỗi khi liên kết tồn kho";
-      return NextResponse.json({ error: msg }, { status: 500 });
-    }
-  } else if (before.inventory_item_id) {
-    await removeInventoryLink(admin, after.id, auth.profile.id);
-    inventoryItemId = null;
-  }
-
-  const recalcDates = [before.purchase_date, after.purchase_date].filter(Boolean).sort();
-  const recalcCategoryIds = Array.from(
-    new Set([before.product_category_id, after.product_category_id].filter(Boolean))
-  ) as string[];
   const recalcResults = [];
-  for (const categoryId of recalcCategoryIds) {
-    recalcResults.push(
-      await recalculateInventorySalesFromPurchase(admin, {
-        storeId: auth.profile.store_id,
-        productCategoryId: categoryId,
-        purchaseDate: recalcDates[0] ?? after.purchase_date,
-        calculatedBy: auth.profile.id,
-      })
-    );
+  let recalcImpact = {
+    affected_sales_count: 0,
+    locked_period_count: 0,
+    earliest_sale_date: null as string | null,
+  };
+
+  if (recalcRelevantChanged) {
+    const beforeInput = {
+      store_id: auth.profile.store_id,
+      purchase_id: before.id,
+      product_name: before.product_name,
+      product_category_id: before.product_category_id,
+      quantity: Number(before.quantity ?? 0),
+      weight:
+        before.weight === null || before.weight === undefined
+          ? null
+          : Number(before.weight),
+      weight_unit: before.weight_unit,
+      unit_cost: Number(before.unit_price ?? 0),
+      total_cost: Number(before.total_amount ?? 0),
+      notes: before.notes ?? null,
+      created_by: auth.profile.id,
+      purchase_date: before.purchase_date,
+      inventory_item_id: before.inventory_item_id,
+    };
+    const afterInput = {
+      store_id: auth.profile.store_id,
+      purchase_id: after.id,
+      product_name: after.product_name,
+      product_category_id: after.product_category_id,
+      quantity: Number(after.quantity ?? 0),
+      weight:
+        after.weight === null || after.weight === undefined
+          ? null
+          : Number(after.weight),
+      weight_unit: after.weight_unit,
+      unit_cost: Number(after.unit_price ?? 0),
+      total_cost: Number(after.total_amount ?? 0),
+      notes: after.notes ?? null,
+      created_by: auth.profile.id,
+      purchase_date: after.purchase_date,
+    };
+
+    if (after.becomes_inventory) {
+      try {
+        const link = before.inventory_item_id
+          ? await reconcileInventoryItemForPurchase(admin, beforeInput, afterInput)
+          : await ensureInventoryItemForPurchase(admin, afterInput);
+        inventoryItemId = link.inventory_item_id;
+      } catch (err) {
+        const msg =
+          err instanceof Error ? err.message : "Lỗi khi liên kết tồn kho";
+        return NextResponse.json({ error: msg }, { status: 500 });
+      }
+    } else if (before.inventory_item_id) {
+      await removeInventoryLink(admin, after.id, auth.profile.id);
+      inventoryItemId = null;
+    }
+
+    const recalcDates = [before.purchase_date, after.purchase_date]
+      .filter(Boolean)
+      .sort();
+    const earliestRecalcDate = recalcDates[0] ?? after.purchase_date;
+    const recalcCategoryIds = Array.from(
+      new Set([before.product_category_id, after.product_category_id].filter(Boolean))
+    ) as string[];
+
+    if (recalcCategoryIds.length > 0) {
+      const impacts = await Promise.all(
+        recalcCategoryIds.map((categoryId) =>
+          getPurchaseRecalcImpact(admin, {
+            storeId: auth.profile.store_id,
+            productCategoryId: categoryId,
+            purchaseDate: earliestRecalcDate,
+          })
+        )
+      );
+      recalcImpact = impacts.reduce(
+        (acc, impact) => ({
+          affected_sales_count:
+            acc.affected_sales_count + impact.affected_sales_count,
+          locked_period_count:
+            acc.locked_period_count + impact.locked_period_count,
+          earliest_sale_date:
+            !acc.earliest_sale_date ||
+            (impact.earliest_sale_date &&
+              impact.earliest_sale_date < acc.earliest_sale_date)
+              ? impact.earliest_sale_date
+              : acc.earliest_sale_date,
+        }),
+        recalcImpact
+      );
+    }
+    for (const categoryId of recalcCategoryIds) {
+      recalcResults.push(
+        await recalculateInventorySalesFromPurchase(admin, {
+          storeId: auth.profile.store_id,
+          productCategoryId: categoryId,
+          purchaseDate: earliestRecalcDate,
+          calculatedBy: auth.profile.id,
+        })
+      );
+    }
   }
 
   await writeAuditLog(admin, {
@@ -186,11 +249,18 @@ export async function PATCH(
     diff: { before, after },
     metadata: {
       inventory_item_id: inventoryItemId,
+      recalc_skipped: !recalcRelevantChanged,
+      recalc_impact: recalcImpact,
       recalc_results: recalcResults,
     },
   });
 
-  return NextResponse.json({ id: after.id, inventory_item_id: inventoryItemId });
+  return NextResponse.json({
+    id: after.id,
+    inventory_item_id: inventoryItemId,
+    recalc_skipped: !recalcRelevantChanged,
+    recalc_impact: recalcImpact,
+  });
 }
 
 /**
@@ -240,6 +310,14 @@ export async function DELETE(
     return NextResponse.json({ error: deleteErr.message }, { status: 500 });
   }
 
+  const recalcImpact = unlinkResult.product_category_id
+    ? await getPurchaseRecalcImpact(admin, {
+        storeId: auth.profile.store_id,
+        productCategoryId: unlinkResult.product_category_id,
+        purchaseDate: unlinkResult.purchase_date ?? before.purchase_date,
+      })
+    : { affected_sales_count: 0, locked_period_count: 0, earliest_sale_date: null };
+
   const recalcResult = unlinkResult.product_category_id
     ? await recalculateInventorySalesFromPurchase(admin, {
         storeId: auth.profile.store_id,
@@ -258,9 +336,10 @@ export async function DELETE(
     diff: { before },
     metadata: {
       inventory_item_id: unlinkResult.inventory_item_id,
+      recalc_impact: recalcImpact,
       recalc_result: recalcResult,
     },
   });
 
-  return NextResponse.json({ ok: true });
+  return NextResponse.json({ ok: true, recalc_impact: recalcImpact });
 }

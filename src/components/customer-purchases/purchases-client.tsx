@@ -208,7 +208,15 @@ export function CustomerPurchasesClient({
           });
           return;
         }
+        const data = await res.json().catch(() => ({}));
         toast.success("Đã xóa giao dịch mua");
+        const impact = data?.recalc_impact;
+        if (impact?.affected_sales_count > 0) {
+          toast.warning("Giá vốn đã được tính lại", {
+            description: `${impact.affected_sales_count} hóa đơn bán từ ngày ${impact.earliest_sale_date} đã tính lại giá vốn. ${impact.locked_period_count > 0 ? `${impact.locked_period_count} kỳ thuế đã khóa sẽ không tự cập nhật.` : ""}`,
+            duration: 8000,
+          });
+        }
         setPendingDelete(null);
         router.refresh();
       } finally {
@@ -464,6 +472,9 @@ export function CustomerPurchasesClient({
       const ws = wb.Sheets[wb.SheetNames[0]];
       const importedRows = XLSX.utils.sheet_to_json<Record<string, unknown>>(ws, { defval: "" });
       let ok = 0;
+      let affectedSalesCount = 0;
+      let lockedPeriodCount = 0;
+      let earliestSaleDate: string | null = null;
 
       for (const row of importedRows) {
         const purchaseDate = parsePurchaseDate(row["Ngày mua"]);
@@ -498,11 +509,30 @@ export function CustomerPurchasesClient({
             attachment_url: null,
           }),
         });
-        if (!res.ok) throw new Error(`Dòng ${ok + 2}: nhập không thành công`);
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(`Dòng ${ok + 2}: ${data?.error ?? "nhập không thành công"}`);
+
+        const impact = data?.recalc_impact;
+        if (impact?.affected_sales_count > 0) {
+          affectedSalesCount += impact.affected_sales_count;
+          lockedPeriodCount += impact.locked_period_count ?? 0;
+          if (
+            impact.earliest_sale_date &&
+            (!earliestSaleDate || impact.earliest_sale_date < earliestSaleDate)
+          ) {
+            earliestSaleDate = impact.earliest_sale_date;
+          }
+        }
         ok += 1;
       }
 
       toast.success(`Đã nhập ${ok} giao dịch từ Excel`);
+      if (affectedSalesCount > 0) {
+        toast.warning("Giá vốn đã được tính lại", {
+          description: `${affectedSalesCount} hóa đơn bán từ ngày ${earliestSaleDate} đã tính lại giá vốn. ${lockedPeriodCount > 0 ? `${lockedPeriodCount} kỳ thuế đã khóa sẽ không tự cập nhật.` : ""}`,
+          duration: 8000,
+        });
+      }
       router.refresh();
     } catch (err) {
       toast.error("Nhập Excel thất bại", {
