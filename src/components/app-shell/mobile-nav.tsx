@@ -5,7 +5,6 @@ import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
 import { LogOut, Menu, X } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { BrandLogo } from "./brand-logo";
 import {
   findNavItemByPath,
   getNavItemsForRole,
@@ -65,10 +64,10 @@ export function MobileNav({ profile }: { profile: ProfileWithStore }) {
           <Menu className="h-5 w-5" />
         </button>
         <Link href="/dashboard" className="flex items-center gap-2 min-w-0">
-          <BrandLogo className="h-8 w-8 shrink-0" />
+          <img src="/logo.png" alt="Phần Mềm Quản Lý Vàng Bạc" className="h-8 w-8 shrink-0 rounded-full object-contain" />
           <div className="min-w-0">
             <div className="text-[15px] font-semibold tracking-[0.15em] text-gold leading-tight">
-              NGỌC TRÂM
+              PHẦN MỀM QUẢN LÝ
             </div>
             {current ? (
               <div className="text-[11px] text-amber-200/80 truncate">
@@ -120,10 +119,10 @@ export function MobileNav({ profile }: { profile: ProfileWithStore }) {
         >
           <div className="flex items-center justify-between px-4 pt-4 pb-3 border-b border-amber-300/15">
             <div className="flex items-center gap-3 min-w-0">
-              <BrandLogo className="h-10 w-10 shrink-0" />
+              <img src="/logo.png" alt="Phần Mềm Quản Lý Vàng Bạc" className="h-10 w-10 shrink-0 rounded-full object-contain" />
               <div className="min-w-0">
                 <div className="text-base font-semibold tracking-[0.16em] text-gold leading-tight">
-                  NGỌC TRÂM
+                  PHẦN MỀM QUẢN LÝ
                 </div>
                 <div className="text-[10px] tracking-[0.28em] text-amber-200/75">
                   VÀNG BẠC ĐÁ QUÝ

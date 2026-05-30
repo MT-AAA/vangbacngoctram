@@ -6,7 +6,7 @@ import { Toaster } from "@/components/ui/sonner";
 const inter = Inter({ subsets: ["latin", "vietnamese"] });
 
 export const metadata: Metadata = {
-  title: "Vàng Bạc Ngọc Trâm - Quản lý cửa hàng",
+  title: "Phần Mềm Quản Lý Vàng Bạc",
   description:
     "Hệ thống quản lý bán hàng, kho và thuế GTGT cho cửa hàng vàng bạc đá quý",
 };

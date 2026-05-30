@@ -1,6 +1,6 @@
-# NGỌC TRÂM — Dashboard Vàng Bạc Đá Quý
+# Phần Mềm Quản Lý Vàng Bạc
 
-Mã nguồn mở cho ứng dụng quản lý cửa hàng vàng bạc đá quý: nhập dữ liệu bán hàng từ Excel, phân loại **Vàng ta**, **Vàng tây**, **Bạc**, quản lý tồn kho, giá vốn và tính **thuế GTGT theo phương pháp trực tiếp trên giá trị gia tăng**.
+Mã nguồn cho Phần Mềm Quản Lý Vàng Bạc: nhập dữ liệu bán hàng từ Excel, phân loại **Vàng ta**, **Vàng tây**, **Bạc**, quản lý tồn kho, giá vốn và tính **thuế GTGT theo phương pháp trực tiếp trên giá trị gia tăng**.
 
 Dự án này phù hợp cho cửa hàng muốn tự triển khai hệ thống riêng trên Supabase/Vercel và tự kiểm soát dữ liệu của mình.
 

@@ -3,7 +3,6 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
-import { BrandLogo } from "./brand-logo";
 import { getNavItemsForRole, roleLabel, type Role } from "./nav-items";
 
 export function AppSidebar({ role }: { role: Role }) {
@@ -19,10 +18,14 @@ export function AppSidebar({ role }: { role: Role }) {
       />
       {/* Top brand */}
       <div className="flex flex-col items-center gap-2 px-6 pt-7 pb-5 border-b border-amber-300/15">
-        <BrandLogo className="h-16 w-16 drop-shadow-[0_2px_8px_rgba(212,160,46,0.35)]" />
+        <img
+          src="/logo.png"
+          alt="Phần Mềm Quản Lý Vàng Bạc"
+          className="h-16 w-16 rounded-full object-contain drop-shadow-[0_2px_8px_rgba(212,160,46,0.35)]"
+        />
         <div className="text-center">
           <div className="text-xl tracking-[0.18em] font-semibold leading-tight text-gold">
-            NGỌC TRÂM
+            PHẦN MỀM QUẢN LÝ
           </div>
           <div className="mt-0.5 text-[10px] tracking-[0.32em] text-amber-200/70">
             VÀNG BẠC ĐÁ QUÝ

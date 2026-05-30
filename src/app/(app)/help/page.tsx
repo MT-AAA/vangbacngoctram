@@ -15,9 +15,9 @@ import {
 } from "lucide-react";
 
 export const metadata = {
-  title: "Hướng dẫn sử dụng — Ngọc Trâm",
+  title: "Hướng dẫn sử dụng — Phần Mềm Quản Lý Vàng Bạc",
   description:
-    "Hướng dẫn sử dụng phần mềm quản lý vàng bạc Ngọc Trâm: nhập Excel, bán hàng, mua từ khách, tồn kho và báo cáo thuế.",
+    "Hướng dẫn sử dụng Phần Mềm Quản Lý Vàng Bạc: nhập Excel, bán hàng, mua từ khách, tồn kho và báo cáo thuế.",
 };
 
 type Section = {
@@ -52,7 +52,7 @@ const SECTIONS: Section[] = [
     body: (
       <div className="space-y-3 text-sm text-emerald-900/85">
         <p>
-          Phần mềm <strong>Ngọc Trâm</strong> dùng để quản lý bán hàng, mua từ
+          <strong>Phần Mềm Quản Lý Vàng Bạc</strong> dùng để quản lý bán hàng, mua từ
           khách, tồn kho và hỗ trợ tính thuế GTGT theo phương pháp trực tiếp
           trên giá trị gia tăng.
         </p>

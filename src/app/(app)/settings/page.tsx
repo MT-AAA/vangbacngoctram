@@ -4,7 +4,7 @@ import { createClient } from "@/lib/supabase/server";
 import { UserManagement } from "@/components/settings/user-management";
 
 export const metadata = {
-  title: "Cài đặt — Ngọc Trâm",
+  title: "Cài đặt — Phần Mềm Quản Lý Vàng Bạc",
 };
 
 export default async function SettingsPage() {

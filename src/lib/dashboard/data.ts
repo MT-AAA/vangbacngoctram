@@ -4,6 +4,7 @@ import {
   loadDashboardCustomerPurchases,
   type DashboardCustomerPurchaseSummary,
 } from "@/lib/customer-purchases/queries";
+import { loadInventoryPeriodReport } from "@/lib/inventory/period-report";
 
 export type PeriodKey = "day" | "month" | "quarter" | "year" | "custom";
 
@@ -291,10 +292,10 @@ export async function loadDashboard(
     { data: recent },
     { data: imports },
     { data: inventoryAlertsSource },
-    { data: inventoryMovements },
     { data: taxSettings },
     { data: priorReport },
     customerPurchases,
+    inventoryReport,
   ] = await Promise.all([
     supabase
       .from("sales_transactions")
@@ -362,12 +363,6 @@ export async function loadDashboard(
       .from("inventory_items")
       .select("current_quantity, purchase_cost_amount, is_tax_cost_source")
       .not("status", "in", "(archived,sold)"),
-    supabase
-      .from("inventory_movements")
-      .select(
-        "source_type, weight_delta, quantity_delta, cost_delta, category:product_categories(name, code)"
-      )
-      .or(`source_type.eq.opening_balance,movement_date.lte.${toISOEnd}`),
     supabase.from("tax_settings").select("vat_rate").maybeSingle(),
     supabase
       .from("tax_reports")
@@ -378,6 +373,11 @@ export async function loadDashboard(
       .limit(1)
       .maybeSingle(),
     loadDashboardCustomerPurchases(supabase, {
+      from: fromISO,
+      to: toISOEnd,
+    }),
+    loadInventoryPeriodReport(supabase, {
+      period,
       from: fromISO,
       to: toISOEnd,
     }),
@@ -521,18 +521,14 @@ export async function loadDashboard(
   let missingCostAlert = 0;
   let lowStockAlert = 0;
 
-  for (const movement of inventoryMovements ?? []) {
-    const c = Array.isArray(movement.category)
-      ? movement.category[0]
-      : movement.category;
-    const name = c?.name ?? "Khác";
-    if (!order.includes(name)) continue;
-
-    const existing = invMap.get(name) ?? { qty: 0, weight: 0, value: 0, unit: "chỉ" };
-    existing.qty += Number(movement.quantity_delta ?? movement.weight_delta ?? 0);
-    existing.weight += Number(movement.weight_delta ?? movement.quantity_delta ?? 0);
-    existing.value += Number(movement.cost_delta ?? 0);
-    invMap.set(name, existing);
+  for (const row of inventoryReport.rows) {
+    if (!order.includes(row.category_name)) continue;
+    invMap.set(row.category_name, {
+      qty: row.current_weight,
+      weight: row.current_weight,
+      value: row.current_cost,
+      unit: "chỉ",
+    });
   }
 
   for (const it of inventoryAlertsSource ?? []) {
