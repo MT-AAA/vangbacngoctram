@@ -323,7 +323,7 @@ export function InventoryForm({
           <DialogDescription>
             {editing
               ? "Cập nhật số lượng, trọng lượng và giá trị tồn. Mọi thay đổi đều được ghi vào nhật ký."
-              : "Dùng để nhập tay tồn đầu kỳ Q2 hoặc khai báo hàng tồn mới. Với báo cáo kho, nhập trọng lượng tồn và tổng giá trị tồn."}
+              : "Dùng để khởi tạo dữ liệu tồn ban đầu khi nhập lại cơ sở dữ liệu từ đầu. Nhập TL tồn ban đầu, tổng giá trị tồn và mốc thời gian khởi tạo."}
           </DialogDescription>
         </DialogHeader>
 
@@ -331,10 +331,9 @@ export function InventoryForm({
           <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
             <p className="font-medium">Gợi ý nhập tồn đầu kỳ Q2/2026</p>
             <p>
-              Tên hàng: “Tồn đầu kỳ Q2/2026 - Vàng ta/Bạc/Vàng tây”, ngày nhập
-              01/04/2026, mã chứng từ TONDAU-Q2-2026. Nhập “Trọng lượng tồn” và
-              “Tổng giá trị tồn”; đơn giá bình quân có thể nhập theo báo cáo hoặc
-              để hệ thống tự suy ra khi gắn giá vốn.
+              Khởi tạo dữ liệu tồn ban đầu: chọn nhóm hàng, nhập TL tồn ban đầu,
+              tổng giá trị tồn và mốc thời gian khởi tạo. Dữ liệu đã có sẽ không
+              bị thay đổi; form này chỉ tạo/sửa dòng tồn bạn đang thao tác.
             </p>
           </div>
 
@@ -442,7 +441,7 @@ export function InventoryForm({
               />
             </div>
             <div>
-              <Label htmlFor="initial_weight" className="flex min-h-10 items-end">Trọng lượng tồn ban đầu (chỉ)</Label>
+              <Label htmlFor="initial_weight" className="flex min-h-10 items-end">TL tồn ban đầu (chỉ)</Label>
               <Input
                 id="initial_weight"
                 value={form.initial_weight}
@@ -452,7 +451,7 @@ export function InventoryForm({
               />
             </div>
             <div>
-              <Label htmlFor="current_weight" className="flex min-h-10 items-end">Trọng lượng tồn hiện có (chỉ)</Label>
+              <Label htmlFor="current_weight" className="flex min-h-10 items-end">TL tồn hiện có (chỉ)</Label>
               <Input
                 id="current_weight"
                 value={form.current_weight}
@@ -555,7 +554,7 @@ export function InventoryForm({
 
           <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
             <div>
-              <Label htmlFor="imported_at">Ngày ghi nhận tồn</Label>
+              <Label htmlFor="imported_at">Mốc thời gian khởi tạo</Label>
               <Input
                 id="imported_at"
                 type="date"

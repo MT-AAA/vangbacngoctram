@@ -134,14 +134,15 @@ export async function loadInventoryPeriodReport(
 
     const weight = Number(row.weight_delta ?? 0);
     const cost = Number(row.cost_delta ?? 0);
-    existing.current_weight = round2(existing.current_weight + weight);
-    existing.current_cost = round2(existing.current_cost + cost);
 
-    if (row.source_type === "opening_balance") {
+    if (row.movement_date < from || row.source_type === "opening_balance") {
       existing.opening_weight = round2(existing.opening_weight + weight);
-    }
-    if (row.movement_date >= from && row.movement_date <= to) {
-      if (weight > 0 && row.source_type !== "opening_balance") {
+      existing.current_weight = round2(existing.current_weight + weight);
+      existing.current_cost = round2(existing.current_cost + cost);
+    } else if (row.movement_date >= from && row.movement_date <= to) {
+      existing.current_weight = round2(existing.current_weight + weight);
+      existing.current_cost = round2(existing.current_cost + cost);
+      if (weight > 0) {
         existing.period_in_weight = round2(existing.period_in_weight + weight);
       }
       if (weight < 0) {

@@ -17,6 +17,7 @@ import type {
   InventoryPeriodReport,
 } from "@/lib/inventory/period-report";
 import type { PeriodKey } from "@/lib/dashboard/data";
+import { OpeningBalanceDialog } from "./opening-balance-dialog";
 import type { CategoryOption } from "./inventory-form";
 
 type Props = {
@@ -31,15 +32,18 @@ type Props = {
   };
 };
 
-export function InventoryAccountingClient({ report, filters }: Props) {
+export function InventoryAccountingClient({ report, categories, filters }: Props) {
   return (
     <div className="space-y-5">
-      <InventoryPeriodFilter
-        active={filters.period}
-        from={filters.from}
-        to={filters.to}
-        rangeLabel={filters.rangeLabel}
-      />
+      <div className="flex flex-wrap items-end justify-between gap-3">
+        <InventoryPeriodFilter
+          active={filters.period}
+          from={filters.from}
+          to={filters.to}
+          rangeLabel={filters.rangeLabel}
+        />
+        <OpeningBalanceDialog categories={categories} />
+      </div>
 
       <div className="overflow-hidden rounded-2xl border bg-card shadow-sm">
         <Table>
