@@ -188,7 +188,6 @@ async function applyPurchaseInventoryDelta(
     inventory_item_id: inventoryId,
     source_type: "customer_purchase",
     source_id: input.purchase_id,
-    movement_event_id: `${input.purchase_id}:${Date.now()}`,
     source_label: input.product_name,
     movement_date: input.purchase_date ?? new Date().toISOString(),
     weight_delta: input.weight_delta,

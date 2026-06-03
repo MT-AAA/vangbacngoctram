@@ -35,7 +35,7 @@ export async function recordInventoryMovement(
   admin: AdminClient,
   input: MovementInput
 ): Promise<void> {
-  await admin.from("inventory_movements").upsert(
+  const { error } = await admin.from("inventory_movements").upsert(
     {
       store_id: input.store_id,
       product_category_id: input.product_category_id,
@@ -53,4 +53,8 @@ export async function recordInventoryMovement(
     },
     { onConflict: "store_id,source_type,source_id" }
   );
+
+  if (error) {
+    throw new Error(`Không ghi được phát sinh tồn kho: ${error.message}`);
+  }
 }
