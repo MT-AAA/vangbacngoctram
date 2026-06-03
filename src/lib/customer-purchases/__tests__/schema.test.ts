@@ -12,6 +12,7 @@ const validBase = {
   customer_phone: "0900000000",
   customer_tax_code: "",
   customer_id_card: "001234567890",
+  customer_address: "",
   product_name: "Nhẫn vàng 9999",
   product_category_id: null,
   purity: "9999",

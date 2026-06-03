@@ -545,11 +545,13 @@ export async function loadDashboard(
   }
 
   for (const it of inventoryAlertsSource ?? []) {
-    const qty = Number(it.current_quantity ?? 0);
     if (it.is_tax_cost_source && it.purchase_cost_amount === null) {
       missingCostAlert += 1;
     }
-    if (qty < 1) {
+  }
+
+  for (const row of inventoryReport.rows) {
+    if (order.includes(row.category_name) && row.current_weight < 1) {
       lowStockAlert += 1;
     }
   }

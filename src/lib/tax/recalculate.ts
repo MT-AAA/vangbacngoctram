@@ -38,6 +38,8 @@ export async function recalculateTaxPeriod(args: {
       "total_amount, purchase_cost_amount, tax_calculation_status, value_added_amount"
     )
     .eq("store_id", args.storeId)
+    .eq("is_intentionally_ignored", false)
+    .or("duplicate_resolution_status.is.null,duplicate_resolution_status.neq.merged")
     .gte("sale_date", period.start_date)
     .lte("sale_date", period.end_date);
   if (tErr) throw new Error(tErr.message);
