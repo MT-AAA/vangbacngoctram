@@ -495,7 +495,7 @@ export function CustomerPurchasesClient({
             customer_address: row["Địa chỉ"] || null,
             product_name: row["Tên sản phẩm"],
             product_category_id: categoryIdByName.get(categoryName) ?? null,
-            purity: row["Tuổi"] || null,
+            purity: row["Tuổi"] === "" ? null : String(row["Tuổi"]),
             unit: row["Đơn vị"] || null,
             weight: row["Trọng lượng"] === "" ? null : parseNumber(row["Trọng lượng"]),
             weight_unit: row["Đơn vị trọng lượng"] || "chỉ",

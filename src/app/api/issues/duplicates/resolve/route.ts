@@ -89,6 +89,13 @@ export async function POST(request: Request) {
       .in("id", mergeIds)
       .eq("store_id", auth.profile.store_id);
     if (mergeErr) return NextResponse.json({ error: mergeErr.message }, { status: 500 });
+
+    const { error: movementErr } = await admin
+      .from("inventory_movements")
+      .delete()
+      .eq("source_type", "sale")
+      .in("source_id", mergeIds);
+    if (movementErr) return NextResponse.json({ error: movementErr.message }, { status: 500 });
   } else {
     for (let i = 0; i < sorted.length; i += 1) {
       const row = sorted[i];

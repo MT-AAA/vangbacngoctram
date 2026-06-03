@@ -302,16 +302,22 @@ export async function loadDashboard(
       .select(
         "sale_date, total_amount, purchase_cost_amount, value_added_amount, product_category_id, quantity, weight, category:product_categories(name, code)"
       )
+      .eq("is_intentionally_ignored", false)
+      .or("duplicate_resolution_status.is.null,duplicate_resolution_status.neq.merged")
       .gte("sale_date", fromISO)
       .lte("sale_date", toISOEnd),
     supabase
       .from("sales_transactions")
       .select("total_amount, purchase_cost_amount, value_added_amount")
+      .eq("is_intentionally_ignored", false)
+      .or("duplicate_resolution_status.is.null,duplicate_resolution_status.neq.merged")
       .gte("sale_date", prevFromISO)
       .lte("sale_date", prevToISO),
     supabase
       .from("sales_transactions")
       .select("id", { count: "exact", head: true })
+      .eq("is_intentionally_ignored", false)
+      .or("duplicate_resolution_status.is.null,duplicate_resolution_status.neq.merged")
       .gte("sale_date", fromISO)
       .lte("sale_date", toISOEnd),
     supabase
@@ -319,17 +325,22 @@ export async function loadDashboard(
       .select("id", { count: "exact", head: true })
       .eq("tax_calculation_status", "missing_purchase_cost")
       .eq("is_intentionally_ignored", false)
+      .or("duplicate_resolution_status.is.null,duplicate_resolution_status.neq.merged")
       .gte("sale_date", fromISO)
       .lte("sale_date", toISOEnd),
     supabase
       .from("sales_transactions")
       .select("id", { count: "exact", head: true })
       .eq("tax_calculation_status", "estimated")
+      .eq("is_intentionally_ignored", false)
+      .or("duplicate_resolution_status.is.null,duplicate_resolution_status.neq.merged")
       .gte("sale_date", fromISO)
       .lte("sale_date", toISOEnd),
     supabase
       .from("sales_transactions")
       .select("id", { count: "exact", head: true })
+      .eq("is_intentionally_ignored", false)
+      .or("duplicate_resolution_status.is.null,duplicate_resolution_status.neq.merged")
       .is("product_category_id", null)
       .gte("sale_date", fromISO)
       .lte("sale_date", toISOEnd),
@@ -350,6 +361,8 @@ export async function loadDashboard(
       .select(
         "id, sale_date, product_name_raw, total_amount, purchase_cost_amount, value_added_amount, tax_calculation_status, category:product_categories(name, code)"
       )
+      .eq("is_intentionally_ignored", false)
+      .or("duplicate_resolution_status.is.null,duplicate_resolution_status.neq.merged")
       .gte("sale_date", fromISO)
       .lte("sale_date", toISOEnd)
       .order("sale_date", { ascending: false })
