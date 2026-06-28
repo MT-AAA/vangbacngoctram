@@ -27,6 +27,7 @@ export default async function CustomerPurchasesPage({
     q?: string;
     customer?: string;
     tax_input?: string;
+    highlighted?: string;
     page?: string;
   };
 }) {
@@ -106,6 +107,7 @@ export default async function CustomerPurchasesPage({
               q: searchParams.q ?? "",
               customer: searchParams.customer ?? "",
               taxInput: searchParams.tax_input ?? "",
+              highlighted: searchParams.highlighted ?? "",
             }}
           />
         </CardContent>

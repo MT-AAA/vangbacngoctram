@@ -38,6 +38,7 @@ import {
   Download,
   FileDown,
   FileUp,
+  Highlighter,
   Loader2,
   Pencil,
   Plus,
@@ -67,6 +68,7 @@ type Props = {
     q: string;
     customer: string;
     taxInput: string;
+    highlighted?: string;
   };
 };
 
@@ -85,7 +87,9 @@ export function CustomerPurchasesClient({
 
   const [from, setFrom] = useState(filters.from);
   const [to, setTo] = useState(filters.to);
-  const [category, setCategory] = useState(filters.category || "all");
+  const [category, setCategory] = useState(
+    filters.highlighted === "1" ? "__highlighted" : filters.category || "all"
+  );
   const [q, setQ] = useState(filters.q);
   const [customer, setCustomer] = useState(filters.customer);
   const [taxInput, setTaxInput] = useState(filters.taxInput || "all");
@@ -112,11 +116,24 @@ export function CustomerPurchasesClient({
       }
     }
   );
+  const [highlightedIds, setHighlightedIds] = useState<Set<string>>(() => {
+    if (typeof window === "undefined") return new Set();
+    try {
+      const saved = window.localStorage.getItem("customerPurchaseHighlightedRows");
+      return new Set(saved ? (JSON.parse(saved) as string[]) : []);
+    } catch {
+      return new Set();
+    }
+  });
   const importInputRef = useRef<HTMLInputElement | null>(null);
 
+  const visibleRows =
+    category === "__highlighted"
+      ? rows.filter((row) => highlightedIds.has(row.id))
+      : rows;
   const totalPages = Math.max(1, Math.ceil(total / pageSize));
   const selectedCount = selectedIds.size;
-  const currentPageIds = rows.map((row) => row.id);
+  const currentPageIds = visibleRows.map((row) => row.id);
   const allCurrentPageSelected =
     currentPageIds.length > 0 && currentPageIds.every((id) => selectedIds.has(id));
   const someCurrentPageSelected = currentPageIds.some((id) => selectedIds.has(id));
@@ -151,11 +168,28 @@ export function CustomerPurchasesClient({
     toast.success("Đã xác minh giao dịch này là dữ liệu khác nhau");
   };
 
+  const toggleHighlight = (id: string) => {
+    const next = new Set(highlightedIds);
+    if (next.has(id)) {
+      next.delete(id);
+      toast.success("Đã bỏ đánh dấu lưu ý");
+    } else {
+      next.add(id);
+      toast.success("Đã đánh dấu dòng cần lưu ý");
+    }
+    setHighlightedIds(next);
+    window.localStorage.setItem(
+      "customerPurchaseHighlightedRows",
+      JSON.stringify(Array.from(next))
+    );
+  };
+
   const apply = () => {
     const sp = new URLSearchParams();
     if (from) sp.set("from", from);
     if (to) sp.set("to", to);
-    if (category && category !== "all") sp.set("category", category);
+    if (category === "__highlighted") sp.set("highlighted", "1");
+    else if (category && category !== "all") sp.set("category", category);
     if (q.trim()) sp.set("q", q.trim());
     if (customer.trim()) sp.set("customer", customer.trim());
     if (taxInput && taxInput !== "all") sp.set("tax_input", taxInput);
@@ -328,9 +362,13 @@ export function CustomerPurchasesClient({
   const buildFormattedWorksheet = (rowsForSheet: Record<string, unknown>[]) => {
     const ws = XLSX.utils.aoa_to_sheet([[...exportHeaders]]);
     ws["!cols"] = exportColumnWidths;
+    const highlightedCellStyle = {
+      fill: { fgColor: { rgb: "DCFCE7" } },
+    };
 
     rowsForSheet.forEach((row, index) => {
       const sheetRow = index + 2;
+      const isHighlighted = row.__highlighted === true;
       exportHeaders.forEach((header, colIndex) => {
         const address = XLSX.utils.encode_cell({ r: sheetRow - 1, c: colIndex });
         const value = row[header];
@@ -349,6 +387,11 @@ export function CustomerPurchasesClient({
           ws[address] = { t: "b", v: value === true || String(value).toLowerCase() === "true" || String(value).toLowerCase() === "có" };
         } else {
           ws[address] = { t: "s", v: String(value ?? "") };
+        }
+
+        if (isHighlighted && ws[address]) {
+          (ws[address] as XLSX.CellObject & { s?: typeof highlightedCellStyle }).s =
+            highlightedCellStyle;
         }
       });
     });
@@ -377,6 +420,7 @@ export function CustomerPurchasesClient({
     exportRows.map((r) => {
       const cat = Array.isArray(r.category) ? r.category[0] : r.category;
       return {
+        __highlighted: highlightedIds.has(r.id),
         "Ngày mua": r.purchase_date,
         "Tên khách hàng": r.customer_name ?? "",
         "SĐT": r.customer_phone ?? "",
@@ -422,6 +466,7 @@ export function CustomerPurchasesClient({
   };
 
   const parseBool = (value: unknown) => {
+    if (typeof value === "boolean") return value;
     const text = String(value ?? "").trim().toLowerCase();
     return ["có", "co", "yes", "true", "1", "x"].includes(text);
   };
@@ -431,6 +476,15 @@ export function CustomerPurchasesClient({
     const normalized = String(value ?? "0").replace(/\./g, "").replace(",", ".");
     const n = Number(normalized);
     return Number.isFinite(n) ? n : 0;
+  };
+
+  const getCell = (row: Record<string, unknown>, keys: string[]) => {
+    for (const key of keys) {
+      if (Object.prototype.hasOwnProperty.call(row, key) && row[key] !== "") {
+        return row[key];
+      }
+    }
+    return "";
   };
 
   const parsePurchaseDate = (value: unknown) => {
@@ -476,41 +530,45 @@ export function CustomerPurchasesClient({
       let lockedPeriodCount = 0;
       let earliestSaleDate: string | null = null;
 
-      for (const row of importedRows) {
-        const purchaseDate = parsePurchaseDate(row["Ngày mua"]);
-        const categoryName = String(row["Phân loại"] ?? "").trim().toLowerCase();
-        const quantity = parseNumber(row["Số lượng"]);
-        const unitPrice = parseNumber(row["Đơn giá mua"]);
-        const totalAmount = parseNumber(row["Thành tiền mua"]) || quantity * unitPrice;
+      for (const [index, row] of importedRows.entries()) {
+        const purchaseDate = parsePurchaseDate(
+          getCell(row, ["Ngày mua", "Ngày mua (YYYY-MM-DD)"])
+        );
+        const productName = getCell(row, ["Tên sản phẩm", "Sản phẩm", "Địa chỉ_1"]);
+        const categoryName = String(getCell(row, ["Phân loại"])).trim().toLowerCase();
+        const quantity = parseNumber(getCell(row, ["Số lượng"]));
+        const unitPrice = parseNumber(getCell(row, ["Đơn giá mua", "Đơn giá"]));
+        const totalAmount =
+          parseNumber(getCell(row, ["Thành tiền mua", "Thành tiền"])) || quantity * unitPrice;
 
         const res = await fetch("/api/customer-purchases", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             purchase_date: purchaseDate,
-            customer_name: row["Tên khách hàng"] || null,
-            customer_phone: row["SĐT"] || null,
-            customer_tax_code: row["MST"] || null,
-            customer_id_card: row["CCCD"] || null,
-            customer_address: row["Địa chỉ"] || null,
-            product_name: row["Tên sản phẩm"],
+            customer_name: getCell(row, ["Tên khách hàng", "Khách hàng"]) || null,
+            customer_phone: getCell(row, ["SĐT", "Điện thoại"]) || null,
+            customer_tax_code: getCell(row, ["MST", "Mã số thuế"]) || null,
+            customer_id_card: getCell(row, ["CCCD", "CMND/CCCD"]) || null,
+            customer_address: getCell(row, ["Địa chỉ"]) || null,
+            product_name: productName,
             product_category_id: categoryIdByName.get(categoryName) ?? null,
-            purity: row["Tuổi"] === "" ? null : String(row["Tuổi"]),
-            unit: row["Đơn vị"] || null,
-            weight: row["Trọng lượng"] === "" ? null : parseNumber(row["Trọng lượng"]),
-            weight_unit: row["Đơn vị trọng lượng"] || "chỉ",
+            purity: getCell(row, ["Tuổi"]) === "" ? null : String(getCell(row, ["Tuổi"])),
+            unit: getCell(row, ["Đơn vị"]) || null,
+            weight: getCell(row, ["Trọng lượng"]) === "" ? null : parseNumber(getCell(row, ["Trọng lượng"])),
+            weight_unit: getCell(row, ["Đơn vị trọng lượng"]) || "chỉ",
             quantity,
             unit_buy_price: unitPrice,
             total_buy_amount: totalAmount,
-            is_tax_purchase_input: parseBool(row["Tính giá vốn"]),
-            add_to_inventory: parseBool(row["Đưa vào tồn kho"]),
-            notes: row["Ghi chú"] || null,
+            is_tax_purchase_input: parseBool(getCell(row, ["Tính giá vốn"])),
+            add_to_inventory: parseBool(getCell(row, ["Đưa vào tồn kho"])),
+            notes: getCell(row, ["Ghi chú"]) || null,
             image_url: null,
             attachment_url: null,
           }),
         });
         const data = await res.json().catch(() => ({}));
-        if (!res.ok) throw new Error(`Dòng ${ok + 2}: ${data?.error ?? "nhập không thành công"}`);
+        if (!res.ok) throw new Error(`Dòng ${index + 2}: ${data?.error ?? "nhập không thành công"}`);
 
         const impact = data?.recalc_impact;
         if (impact?.affected_sales_count > 0) {
@@ -572,6 +630,7 @@ export function CustomerPurchasesClient({
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">Tất cả</SelectItem>
+                <SelectItem value="__highlighted">Đã đánh dấu lưu ý</SelectItem>
                 <SelectItem value="none">Chưa phân loại</SelectItem>
                 {categories.map((c) => (
                   <SelectItem key={c.id} value={c.id}>
@@ -718,25 +777,28 @@ export function CustomerPurchasesClient({
             </TableRow>
           </TableHeader>
           <TableBody>
-            {rows.length === 0 ? (
+            {visibleRows.length === 0 ? (
               <TableRow>
                 <TableCell colSpan={role === "admin" ? 13 : 12} className="text-center text-sm text-muted-foreground py-8">
                   Chưa có giao dịch nào phù hợp.
                 </TableCell>
               </TableRow>
             ) : (
-              rows.map((r) => {
+              visibleRows.map((r) => {
                 const cat = Array.isArray(r.category) ? r.category[0] : r.category;
                 const isDuplicate = duplicateCounts[duplicateKeyOf(r)] > 1;
                 const isVerifiedDuplicate = verifiedDuplicateIds.has(r.id);
                 const shouldWarnDuplicate = isDuplicate && !isVerifiedDuplicate;
+                const isHighlighted = highlightedIds.has(r.id);
                 return (
                   <TableRow
                     key={r.id}
                     className={
-                      shouldWarnDuplicate
-                        ? "bg-rose-50/90 hover:bg-rose-100 border-l-4 border-l-rose-500"
-                        : undefined
+                      isHighlighted
+                        ? "bg-emerald-50/90 hover:bg-emerald-100 border-l-4 border-l-emerald-500"
+                        : shouldWarnDuplicate
+                          ? "bg-rose-50/90 hover:bg-rose-100 border-l-4 border-l-rose-500"
+                          : undefined
                     }
                   >
                     {role === "admin" && (
@@ -839,6 +901,19 @@ export function CustomerPurchasesClient({
                         <Button
                           variant="ghost"
                           size="sm"
+                          onClick={() => toggleHighlight(r.id)}
+                          title={isHighlighted ? "Bỏ đánh dấu lưu ý" : "Đánh dấu dòng cần lưu ý"}
+                          className={
+                            isHighlighted
+                              ? "text-emerald-700 hover:text-emerald-800 hover:bg-emerald-100"
+                              : "text-muted-foreground hover:text-emerald-700 hover:bg-emerald-50"
+                          }
+                        >
+                          <Highlighter className="h-4 w-4" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="sm"
                           onClick={() => openEdit(r)}
                           title="Sửa"
                         >
@@ -867,7 +942,7 @@ export function CustomerPurchasesClient({
 
       <div className="flex items-center justify-between text-xs text-muted-foreground">
         <div>
-          Trang {page}/{totalPages} • Tổng {formatNumber(total, 0)} giao dịch
+          Trang {page}/{totalPages} • Tổng {formatNumber(category === "__highlighted" ? visibleRows.length : total, 0)} giao dịch
         </div>
         <div className="flex gap-2">
           <Button
