@@ -530,7 +530,8 @@ export function CustomerPurchasesClient({
       let lockedPeriodCount = 0;
       let earliestSaleDate: string | null = null;
 
-      for (const [index, row] of importedRows.entries()) {
+      for (let index = 0; index < importedRows.length; index += 1) {
+        const row = importedRows[index];
         const purchaseDate = parsePurchaseDate(
           getCell(row, ["Ngày mua", "Ngày mua (YYYY-MM-DD)"])
         );
